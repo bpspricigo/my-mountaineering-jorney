@@ -1,14 +1,22 @@
-const hikeFolders = ['20250531', '20250601']; // Just keep adding to this list
+const hikeFolders = ['Sample 1', 'Sample 2', 'Sample 3', '20250531', '20250601']; // Just keep adding to this list
 
-hikeFolders.forEach(folder => {
-  fetch(`gpx/${folder}/info.json`)
-    .then(res => {
-      if (!res.ok) throw new Error(`info.json not found for ${folder}`);
-      return res.json();
-    })
-    .then(data => renderHike(folder, data))
-    .catch(err => {
-      console.warn(`Skipping ${folder}: ${err.message}`);
+Promise.all(
+  hikeFolders.map(folder =>
+    fetch(`gpx/${folder}/info.json`)
+      .then(res => {
+        if (!res.ok) throw new Error(`info.json not found for ${folder}`);
+        return res.json();
+      })
+      .then(data => ({ folder, data }))
+      .catch(err => {
+        console.warn(`Skipping ${folder}: ${err.message}`);
+        return null;
+      })
+  )
+).then(results => {
+  results
+    .forEach(entry => {
+      if (entry) renderHike(entry.folder, entry.data); // preserves order
     });
 });
 
@@ -31,8 +39,8 @@ function renderHike(folder, info) {
 
   const container = document.createElement('section');
   container.innerHTML = `
-    <h2>${title}</h2>
-    <p><strong>${formattedDate}</strong></p>
+    <h2>${formattedDate}</h2>
+    <h3>${title}</h3>
     <ul>
       <li><strong>Distance:</strong> ${distance}</li>
       <li><strong>Elevation gain:</strong> ${elevation}</li>
