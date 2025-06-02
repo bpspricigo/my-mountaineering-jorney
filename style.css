@@ -49,5 +49,78 @@ section {
 .map {
   width: 100%;
   height: 500px;
-  margin-top: 1rem;
 }
+
+/* hike.css */
+
+.hike {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-width: 700px;
+  margin: 2rem auto;
+  overflow: hidden;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+
+
+.hike-content {
+  padding: 1rem 1.5rem;
+}
+
+.hike-title {
+  margin: 0.5rem 0;
+  font-size: 1.4rem;
+  font-weight: bold;
+}
+
+.hike-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem; /* spacing between items */
+  font-size: 0.95rem;
+  margin-bottom: 0.5rem;
+  color: #444;
+}
+
+.hike-stat-item {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.stat-icon {
+  margin-right: 0.25rem; /* smaller spacing between icon and text */
+  font-size: 1rem;
+}
+
+.hike-description {
+  font-size: 0.95rem;
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.hike-footer {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.hike-date,
+.hike-photos {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #2a7de1;
+  background: #eef5ff;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.hike-photos:hover {
+  background: #d7eaff;
+}
+

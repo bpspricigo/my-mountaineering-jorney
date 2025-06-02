@@ -39,6 +39,21 @@ function renderHike(folder, info) {
 
   const container = document.createElement('section');
   container.innerHTML = `
+    <div id="map-${folder}" class="map"></div>
+    <h2>${title}</h2>
+    <div class="hike-stats">
+      ${movingTime ? `<span class="hike-stat-item"><span class="stat-icon">⏱</span>${movingTime}</span>` : ""}
+      ${distance ? `<span class="hike-stat-item"><span class="stat-icon">🚶</span>${distance}</span>` : ""}
+      ${elevation ? `<span class="hike-stat-item"><span class="stat-icon">⛰</span>${elevation}</span>` : ""}
+    </div>
+    <p class="hike-description">${description}</p>
+    <div class="hike-footer">
+      <span class="hike-date">📅 ${formattedDate}</span>
+      ${photos ? `<a class="hike-photos" href="${photos}" target="_blank">📸 Photo Album</a>` : ""}
+    </div>
+  `;
+/*  
+  container.innerHTML = `
     <h2>${formattedDate}</h2>
     <h3>${title}</h3>
     <ul>
@@ -51,7 +66,7 @@ function renderHike(folder, info) {
     
     <div id="map-${folder}" class="map"></div>
   `;
-
+*/
   document.getElementById('journal').appendChild(container);
 
   // Try to load the GPX file — skip if not found
