@@ -2,42 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>My Travel Journal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Hiking Journal</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
 </head>
 <body>
-  <header>
-    <h1>🌍 My Travel Journal</h1>
-  </header>
-
-  <main>
-    <section>
-      <h2>Day 1: Hiking in the Alps</h2>
-      <p>We started our hike from Engelberg and followed a scenic route through the valley.</p>
-      <div id="map-day1" class="map"></div>
-    </section>
-  </main>
+  <header><h1>🥾 My Hiking Journal</h1></header>
+  <main id="journal"></main>
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.4.0/gpx.min.js"></script>
-  <script>
-    const map = L.map('map-day1').setView([46.8, 8.2], 10);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
-    new L.GPX("gpx/day1.gpx", {
-      async: true,
-      marker_options: {
-        startIconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-green.png',
-        endIconUrl: 'https://leafletjs.com/examples/custom-icons/leaf-red.png',
-        shadowUrl: 'https://leafletjs.com/examples/custom-icons/leaf-shadow.png'
-      }
-    }).on('loaded', function(e) {
-      map.fitBounds(e.target.getBounds());
-    }).addTo(map);
-  </script>
+  <script src="https://unpkg.com/leaflet-gpx@1.5.1/gpx.js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
