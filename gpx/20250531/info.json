@@ -1,10 +1,12 @@
 {
   "title": "Neureuth Family Hike",
   "date": "2025-05-31",
+  "location": "Tegernsee, Germany",
+  "flag": "DE",
   "description": "Challenging but rewarding hike carrying the little one in the Kraxn. Stunning views and a great family adventure.",
-  "distance": "8 km",
-  "elevation": "507 m",
+  "distance": "7.68 km",
+  "elevation": "512 m",
+  "difficulty": "Moderate",
   "movingTime": "2:38 h",
   "photos": ""
 }
-
