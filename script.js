@@ -3,7 +3,9 @@ let hikeFolders = [];
 if (window.location.pathname.includes('future')) {
   // Future hikes page
   hikeFolders = [
-    'future/herzogstand'
+    'future/herzogstand',
+    'future/baumgartenschneid',
+    'future/brecherspitz'
   ];
 } else {
   // Main (completed) hikes page
