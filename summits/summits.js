@@ -16,7 +16,7 @@ fetch('summits/summits.json')
   .then(peaks => {
     const map = new maplibregl.Map({
       container: 'map-summits',
-      style: `https://api.maptiler.com/maps/019777b2-7e93-7846-880d-ec28927d8a99/style.json?key=${apiKey}`,
+      style: `https://api.maptiler.com/maps/01977a3c-1420-7d86-8992-edcec1cbca8d/style.json?key=${apiKey}`,
       center: [11.5, 47.5],
       zoom: 9
     });
@@ -26,19 +26,15 @@ fetch('summits/summits.json')
     peaks.forEach(peak => {
       // Create a new div for each marker
       const markerDiv = document.createElement('div');
-      markerDiv.style.fontSize = '12px';
-      markerDiv.style.textAlign = 'center';
-      markerDiv.style.lineHeight = '1.2';
-      markerDiv.style.whiteSpace = 'nowrap';
-      markerDiv.style.color = 'black';
+      markerDiv.className = 'custom-marker';
 
       markerDiv.innerHTML = `
-        <div>${peak.name}</div>
-        <div>${peak.elevation}</div>
-        <div style="font-size: 16px; line-height: 1;">🗻</div>
+        <div class="marker-icon"></div>
+        <div class="marker-line">${peak.name}</div>
+        <div class="marker-line">${peak.elevation}</div>
       `;
       
-      new maplibregl.Marker({ element : markerDiv, anchor: 'bottom' })
+      new maplibregl.Marker({ element : markerDiv, anchor: 'top' })
         .setLngLat([peak.lon, peak.lat])
         .setPopup(new maplibregl.Popup().setHTML(`
           <strong>${peak.name}</strong><br>

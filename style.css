@@ -95,7 +95,7 @@ section {
 
 .map-summit {
   width: 100%;
-  height: 600px;
+  height: 650px;
 }
 
 /* hike.css */
@@ -208,3 +208,33 @@ section {
   border: 2px solid white;
   box-shadow: 0 0 3px rgba(0,0,0,0.5);
 }
+
+.custom-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1.2;
+  color: black;
+  text-shadow: -0.5px -0.5px 0 #fff,
+               0.5px -0.5px 0 #fff,
+              -0.5px  0.5px 0 #fff,
+               0.5px  0.5px 0 #fff;
+  transform: translateY(-100%);
+  pointer-events: auto;
+}
+
+.marker-line {
+  margin: 0;
+  padding: 0;
+}
+
+.marker-icon {
+  width: 0;
+  height: 0;
+  margin-top: 3px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid black; /* Upwards triangle */
+}
+
