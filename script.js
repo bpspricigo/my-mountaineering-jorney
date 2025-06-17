@@ -7,16 +7,16 @@ if (window.location.pathname.includes('future')) {
   hikeFolders = [
     'future/herzogstand',
     'future/baumgartenschneid',
-    'future/brecherspitz'
+    'future/brecherspitz',
+    'Sample 1',
+    'Sample 2',
+    'Sample 3',
   ];
 } else {
   // Main (completed) hikes page
   hikeFolders = [
-    'Sample 1',
-    'Sample 2',
-    'Sample 3',
     '20250531',
-    '20250601'
+    '20250615'
   ];
 }
 
@@ -70,6 +70,8 @@ function renderHike(folder, info) {
   } else {
     formattedDate = ""; // or leave empty, or use a placeholder
   }
+  const lat = info.lat || 47.5;
+  const lon = info.lon || 11.5;
 
   const container = document.createElement('section');
   container.innerHTML = `
@@ -111,7 +113,7 @@ function renderHike(folder, info) {
       const map = new maplibregl.Map({
         container: `map-${folder}`,
         style: `https://api.maptiler.com/maps/01977a50-3b45-714b-8988-53457dbba54f/style.json?key=${apiKey}`,
-        center: [11.5, 47.5], // Default center, will be overridden by fitBounds
+        center: [lon, lat], // Default center, will be overridden by fitBounds
         zoom: 9
       });
 
@@ -123,15 +125,32 @@ function renderHike(folder, info) {
           data: geojson
         });
 
-        map.addLayer({
-          id: `track-line-${folder}`,
-          type: 'line',
-          source: `track-${folder}`,
-          paint: {
-            'line-color': '#f55',
-            'line-width': 4
-          }
-        });
+        const beforeLayerId = 'Peak labels'; // or whichever label you want it under
+
+        try {
+          map.addLayer({
+            id: `track-line-${folder}`,
+            type: 'line',
+            source: `track-${folder}`,
+            layout: {
+              'line-join': 'round',
+              'line-cap': 'round'
+            },
+            paint: {
+              'line-color': '#ff0000',
+              'line-width': [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                8, 1.5,
+                12, 3
+              ],
+              'line-opacity': 1
+            }
+          }, beforeLayerId); // 👈 Insert *before* peak labels
+        } catch (e) {
+          console.error(`[${folder}] Failed to insert track layer:`, e);
+        }
 
         // Fit bounds
         const bounds = new maplibregl.LngLatBounds();
@@ -141,6 +160,17 @@ function renderHike(folder, info) {
           }
         });
         map.fitBounds(bounds, { padding: 40 });
+
+        /*// 🧠 Log current layer stack
+        const style = map.getStyle();
+        if (style && style.layers) {
+          console.log(`[${folder}] Map layer stack (${style.layers.length} layers):`);
+          style.layers.forEach((layer, index) => {
+            console.log(`${index}: ${layer.id} [${layer.type}]`);
+          });
+        } else {
+          console.warn(`[${folder}] No layers found in map style.`);
+        }*/
 
         // Add start/end markers
         const line = geojson.features.find(f => f.geometry.type === "LineString");
@@ -156,8 +186,8 @@ function renderHike(folder, info) {
             return new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map);
           };
 
-          makeMarker(start, 'A');
           makeMarker(end, 'B');
+          makeMarker(start, 'A');
         }
       });
     })
