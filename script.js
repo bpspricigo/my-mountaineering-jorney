@@ -1,3 +1,5 @@
+const apiKey = CONFIG.MAPTILER_API_KEY;
+
 let hikeFolders = [];
 
 if (window.location.pathname.includes('future')) {
@@ -99,37 +101,69 @@ function renderHike(folder, info) {
   fetch(`gpx/${folder}/track.gpx`)
     .then(res => {
       if (!res.ok) throw new Error('track.gpx not found');
-      const map = L.map(`map-${folder}`).setView([0, 0], 13);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
-      }).addTo(map);
+      return res.text();
+    })
+    .then(gpxText => {
+      const parser = new DOMParser();
+      const gpxDoc = parser.parseFromString(gpxText, 'application/xml');
+      const geojson = toGeoJSON.gpx(gpxDoc);
 
-      new L.GPX(`gpx/${folder}/track.gpx`, {
-        async: true,
-        marker_options: {
-          endIcon: L.divIcon({
-            className: 'custom-marker',
-            html: '<div class="marker-label">B</div>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            zIndexOffset: 10
-          }),
-          startIcon: L.divIcon({
-            className: 'custom-marker',
-            html: '<div class="marker-label">A</div>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12],
-            zIndexOffset: 20
-          }),
-          shadowUrl: null
+      const map = new maplibregl.Map({
+        container: `map-${folder}`,
+        style: `https://api.maptiler.com/maps/01977a50-3b45-714b-8988-53457dbba54f/style.json?key=${apiKey}`,
+        center: [11.5, 47.5], // Default center, will be overridden by fitBounds
+        zoom: 9
+      });
+
+      map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+      map.on('load', () => {
+        map.addSource(`track-${folder}`, {
+          type: 'geojson',
+          data: geojson
+        });
+
+        map.addLayer({
+          id: `track-line-${folder}`,
+          type: 'line',
+          source: `track-${folder}`,
+          paint: {
+            'line-color': '#f55',
+            'line-width': 4
+          }
+        });
+
+        // Fit bounds
+        const bounds = new maplibregl.LngLatBounds();
+        geojson.features.forEach(f => {
+          if (f.geometry.type === "LineString") {
+            f.geometry.coordinates.forEach(coord => bounds.extend(coord));
+          }
+        });
+        map.fitBounds(bounds, { padding: 40 });
+
+        // Add start/end markers
+        const line = geojson.features.find(f => f.geometry.type === "LineString");
+        if (line) {
+          const coords = line.geometry.coordinates;
+          const start = coords[0];
+          const end = coords[coords.length - 1];
+
+          const makeMarker = (coord, label) => {
+            const el = document.createElement('div');
+            el.className = 'custom-marker';
+            el.innerHTML = `<div class="marker-label">${label}</div>`;
+            return new maplibregl.Marker({ element: el, anchor: 'center' }).setLngLat(coord).addTo(map);
+          };
+
+          makeMarker(start, 'A');
+          makeMarker(end, 'B');
         }
-      }).on('loaded', function(e) {
-        map.fitBounds(e.target.getBounds());
-      }).addTo(map);
+      });
     })
     .catch(err => {
       console.warn(`Map skipped for ${folder}: ${err.message}`);
-      document.getElementById(`map-${folder}`).remove(); // Optional: remove the empty map div
+      document.getElementById(`map-${folder}`).remove();
     });
 }
 
