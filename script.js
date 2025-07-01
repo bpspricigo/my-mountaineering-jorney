@@ -16,7 +16,8 @@ if (window.location.pathname.includes('future')) {
   // Main (completed) hikes page
   hikeFolders = [
     '20250531',
-    '20250615'
+    '20250615',
+    '20250629'
   ];
 }
 
