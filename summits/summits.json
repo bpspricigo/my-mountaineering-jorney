@@ -30,5 +30,37 @@
     "lon": 11.68279429760538,
     "date": "2025-06-29",
     "flag": "AT"
+  },
+  {
+    "name": "Schafreuter",
+    "elevation": "2102 m",
+    "lat": 47.509028394360264,
+    "lon": 11.487076342241785,
+    "date": "2025-07-12",
+    "flag": "DE"
+  },
+  {
+    "name": "Delpsjoch",
+    "elevation": "1945 m",
+    "lat": 47.50077894316283, 
+    "lon": 11.495985194242085,
+    "date": "2025-07-12",
+    "flag": "AT"
+  },
+  {
+    "name": "Rotwandlspitze",
+    "elevation": "2192 m",
+    "lat": 47.406620,
+    "lon": 11.288216,
+    "date": "2025-08-10",
+    "flag": "AT"
+  },
+  {
+    "name": "Brunnensteinspitze",
+    "elevation": "2180 m",
+    "lat": 47.405611, 
+    "lon":  11.287268,
+    "date": "2025-08-10",
+    "flag": "AT"
   }
 ]
