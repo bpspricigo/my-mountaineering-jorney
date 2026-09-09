@@ -345,3 +345,386 @@ main {
 .popup-content strong {
   font-size: 14px;
 }
+
+/* ─── Peak planner ──────────────────────────────────────────────────────────── */
+body.tab-wide main {
+  max-width: 1400px;
+}
+
+.peaks-layout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.map--peaks {
+  height: calc(100vh - 260px);
+  min-height: 480px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.peaks-error {
+  padding: 2rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.peaks-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  position: sticky;
+  top: 5.5rem;
+}
+
+.peaks-panel h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.peaks-filters,
+.peaks-actions {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem 1.2rem;
+}
+
+/* ─── Counters ──────────────────────────────────────────────────────────────── */
+.peaks-counts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.peaks-count {
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.peaks-count--total {
+  grid-column: 1 / -1;
+  background: var(--header-bg);
+}
+
+.peaks-count--total .peaks-count-value,
+.peaks-count--total .peaks-count-label {
+  color: var(--header-text);
+}
+
+.peaks-count-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.peaks-count-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ─── Filter fields ─────────────────────────────────────────────────────────── */
+.peaks-field {
+  display: block;
+  border: none;
+  margin-bottom: 1rem;
+}
+
+.peaks-field > span,
+.peaks-field legend {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+.peaks-field output {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.peaks-field input[type="search"] {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.peaks-field input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.peaks-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.peaks-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.peaks-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.peaks-check input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.peaks-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px var(--border);
+  flex-shrink: 0;
+}
+
+/* ─── Tagged list ───────────────────────────────────────────────────────────── */
+.peaks-tagged {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.peaks-tagged-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.45rem;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.peaks-tagged-row:hover {
+  background: var(--chip-bg);
+}
+
+.peaks-tagged-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.peaks-tagged-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peaks-tagged-ele {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.peaks-empty {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 0.3rem 0 0.6rem;
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.peaks-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.peaks-buttons button,
+.peaks-import {
+  flex: 1;
+  text-align: center;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.peaks-buttons button:hover,
+.peaks-import:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.peaks-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.8rem;
+}
+
+.peaks-note code {
+  background: var(--chip-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+
+.peaks-source {
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+/* ─── Status picker popup ───────────────────────────────────────────────────── */
+.peak-picker h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.peak-picker-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.7rem;
+}
+
+.peak-picker-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.peak-option {
+  --option-color: var(--accent);
+  padding: 0.4rem 0.5rem;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.peak-option:hover {
+  border-color: var(--option-color);
+  color: var(--option-color);
+}
+
+.peak-option.is-current {
+  background: var(--option-color);
+  border-color: var(--option-color);
+  color: #fff;
+}
+
+.peak-picker-links {
+  display: flex;
+  gap: 0.7rem;
+  font-size: 0.78rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+}
+
+.peak-picker-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.peak-picker-links a:hover {
+  text-decoration: underline;
+}
+
+.peak-popup .maplibregl-popup-content {
+  border-radius: 10px;
+  padding: 0.85rem 1rem 0.9rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+}
+
+.peak-hover .maplibregl-popup-content {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+.peak-hover .maplibregl-popup-tip {
+  display: none;
+}
+
+/* ─── Flash message ─────────────────────────────────────────────────────────── */
+.peaks-flash {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translate(-50%, 1rem);
+  background: var(--header-bg);
+  color: var(--header-text);
+  padding: 0.6rem 1.1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 200;
+}
+
+.peaks-flash.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.peaks-flash.is-error {
+  background: #a33;
+}
+
+/* ─── Narrow screens ────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .peaks-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .peaks-panel {
+    position: static;
+  }
+
+  .map--peaks {
+    height: 60vh;
+  }
+}

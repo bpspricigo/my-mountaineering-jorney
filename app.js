@@ -30,6 +30,8 @@ function activateTab(name) {
   document.querySelectorAll('.tab-content').forEach(el => {
     el.hidden = el.id !== `tab-${name}`;
   });
+  // The peak planner needs the full window; the reading tabs stay a column.
+  document.body.classList.toggle('tab-wide', name === 'peaks');
   if (!initializedTabs.has(name)) {
     initializedTabs.add(name);
     initTab(name);
@@ -39,6 +41,7 @@ function activateTab(name) {
 async function initTab(name) {
   if (name === 'journal') await initJournal();
   else if (name === 'planner') await initPlanner();
+  else if (name === 'peaks') await initPeaks();   // peaks.js
   else if (name === 'summits') await initSummits();
 }
 

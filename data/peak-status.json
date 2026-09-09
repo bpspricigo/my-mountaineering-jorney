@@ -1,0 +1,70 @@
+{
+  "version": 1,
+  "updated": "2026-09-09",
+  "peaks": {
+    "26864487": {
+      "status": "done",
+      "date": "2025-06-15",
+      "name": "Rotwand",
+      "ele": 1884,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "266993268": {
+      "status": "done",
+      "date": "2025-06-15",
+      "name": "Taubenstein",
+      "ele": 1693,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "304168699": {
+      "status": "done",
+      "date": "2025-07-12",
+      "name": "Delpsjoch",
+      "ele": 1945,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "380989890": {
+      "status": "done",
+      "date": "2025-08-10",
+      "name": "Brunnsteinspitze",
+      "ele": 2180,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "1396345672": {
+      "status": "done",
+      "date": "2025-06-29",
+      "name": "Seekarspitze",
+      "ele": 2053,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "1621410767": {
+      "status": "done",
+      "date": "2025-07-12",
+      "name": "Schafreuter",
+      "ele": 2102,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "1999392342": {
+      "status": "done",
+      "date": "2025-08-10",
+      "name": "Rotwandlspitze",
+      "ele": 2192,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "5594875706": {
+      "status": "done",
+      "date": "2025-05-31",
+      "name": "Neureuth",
+      "ele": 1261,
+      "country": "DE",
+      "source": "summits.json"
+    }
+  }
+}
