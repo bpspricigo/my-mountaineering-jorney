@@ -34,7 +34,19 @@ const REGIONS = [
   // a busy day would push it over.
   { name: 'alps-3000-west',   bbox: '43.3,5.0,47.0,8.0',   minEle: 3000 },
   { name: 'alps-3000-central', bbox: '44.0,8.0,47.5,11.0', minEle: 3000 },
-  { name: 'alps-3000-east',   bbox: '45.5,11.0,48.5,16.5', minEle: 3000 }
+  { name: 'alps-3000-east',   bbox: '45.5,11.0,48.5,16.5', minEle: 3000 },
+
+  // Height alone misses mountains that matter. Triglav is Slovenia's highest
+  // summit and one of the best-known objectives in the Alps, but at 2864 m it
+  // fell between every rule above: 2.4 km outside the eastern-alps box, and
+  // 136 m under the 3000 m floor of the box it does sit in. Slovenia ended up
+  // with no peaks at all while 1500 m wooded hills near Munich were included.
+  //
+  // Prominence — how far you must descend before climbing something higher —
+  // is what marks a range high point. Triglav's is 2048 m. Requiring 300 m adds
+  // only ~370 peaks across the whole arc, so this stays a rule about
+  // significance rather than an excuse to bulk the file out.
+  { name: 'notable', bbox: '43.3,5.0,48.5,16.5', minEle: 1500, minProminence: 300 }
 ];
 
 const DEFAULTS = {
@@ -106,7 +118,8 @@ function parseArgs(argv) {
 
 function usage() {
   const regions = DEFAULTS.regions
-    .map(r => `                        ${r.name}: ${r.bbox} above ${r.minEle} m`)
+    .map(r => `                        ${r.name}: ${r.bbox} above ${r.minEle} m` +
+              (r.minProminence ? ` and prominence >= ${r.minProminence} m` : ''))
     .join('\n');
   console.log(`
 Usage: node scripts/fetch-peaks.mjs [options]
@@ -256,9 +269,18 @@ async function overpass(query, label, { expectNonEmpty = false } = {}) {
  * in too and re-parsed properly on this side. (No such tag exists in the
  * regions checked so far: 18404 cached tags, none in that format.)
  */
-function peaksQuery(bbox, minEle, includeUnnamed) {
-  const floor = `(if:number(t["ele"]) >= ${minEle} || number(t["ele"]) < 10)`;
+function peaksQuery(bbox, minEle, includeUnnamed, minProminence = null) {
   const named = includeUnnamed ? '' : '["name"]';
+
+  if (minProminence !== null) {
+    // A significance rule rather than a height one: only peaks OSM records as
+    // rising well clear of their surroundings.
+    return `[out:json][timeout:300];
+node["natural"="peak"]["ele"]${named}["prominence"](if:number(t["prominence"]) >= ${minProminence} && number(t["ele"]) >= ${minEle})(${bbox});
+out body;`;
+  }
+
+  const floor = `(if:number(t["ele"]) >= ${minEle} || number(t["ele"]) < 10)`;
   return `[out:json][timeout:300];
 node["natural"="peak"]["ele"]${named}${floor}(${bbox});
 out body;`;
@@ -491,7 +513,10 @@ async function keepTagged(peaks, statusFile, includeUnnamed) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   console.log('[peaks] regions:');
-  for (const r of opts.regions) console.log(`          ${r.name}: ${r.bbox} above ${r.minEle} m`);
+  for (const r of opts.regions) {
+    const rule = r.minProminence ? ` and prominence >= ${r.minProminence} m` : '';
+    console.log(`          ${r.name}: ${r.bbox} above ${r.minEle} m${rule}`);
+  }
   console.log(`[peaks] named-only=${!opts.includeUnnamed}
 `);
 
@@ -501,7 +526,7 @@ async function main() {
   for (const [index, region] of opts.regions.entries()) {
     if (index > 0) await sleep(1500);
     const nodes = await overpass(
-      peaksQuery(region.bbox, region.minEle, opts.includeUnnamed),
+      peaksQuery(region.bbox, region.minEle, opts.includeUnnamed, region.minProminence ?? null),
       `peaks in ${region.name}`
     );
     let kept = 0;

@@ -95,10 +95,35 @@ a week of planning" are different questions:
 | `home` | `47.15,10.75,47.95,12.45` | 1500 m | local hills, Karwendel, Zugspitze |
 | `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, Dolomites |
 | `alps-3000-*` | the Alpine arc, in three strips | 3000 m | Mont Blanc, Monte Rosa, Bernina, Gran Paradiso |
+| `notable` | the Alpine arc | 1500 m **and prominence ≥ 300 m** | range high points below the 3000 m rule |
 
-That currently yields **9,197 named peaks** from 1261 m to 4807 m (Mont Blanc),
-across 7 countries — a 2.1 MB file. The arc is split into strips because querying
-it as one box used 133 s of a 300 s timeout.
+That currently yields **9,479 named peaks** from 1261 m to 4807 m (Mont Blanc),
+across 7 countries — a 2.2 MB file, including all 82 official UIAA
+four-thousanders. The arc is split into strips because querying it as one box
+used 133 s of a 300 s timeout.
+
+The `notable` rule exists because height alone misses mountains that matter.
+Triglav is Slovenia's highest summit and a famous objective, but at 2864 m it
+fell through every box-and-floor rule and Slovenia ended up with **no peaks at
+all**, while 1500 m wooded hills near Munich were included. Prominence — how far
+you must descend before you can climb higher — is what marks a range high point;
+Triglav's is 2048 m. Requiring 300 m adds only ~280 peaks across the whole arc.
+
+### Checking coverage
+
+```bash
+node scripts/check-coverage.mjs
+```
+
+Verifies the snapshot contains all 82 official UIAA four-thousanders and a list
+of peaks that must be present regardless of height — country high points that sit
+below some rule's floor, and anything already climbed. Exits non-zero if any are
+missing.
+
+This exists because every coverage mistake in this project produced a
+plausible-looking file rather than an error: a snapshot of "Bavaria and Tirol"
+with no Zugspitze, a French Alps with no country, a Slovenia with no peaks. None
+of them raised anything. Run it after changing the regions.
 
 Overlapping regions keep the lower floor, so local 1200 m hills survive inside the
 high-altitude box. Edit `REGIONS` to change the coverage, or query an ad-hoc box:
