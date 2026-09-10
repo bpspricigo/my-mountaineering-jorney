@@ -32,6 +32,7 @@ const COUNTRY_NAMES = { DE: 'Germany', AT: 'Austria', IT: 'Italy', CH: 'Switzerl
 
 const state = {
   features: [],              // GeoJSON features, properties.status kept current
+  byId: new Map(),           // peak id (string) → feature, to avoid rescanning
   statuses: new Map(),       // peak id (string) → { status, date, note, … }
   baseline: {},              // what data/peak-status.json said
   map: null,
@@ -106,6 +107,8 @@ async function initPeaks() {
       status: state.statuses.get(String(f.properties.id))?.status ?? 'none'
     }
   }));
+
+  state.byId = new Map(state.features.map(f => [String(f.properties.id), f]));
 
   const elevations = state.features.map(f => f.properties.ele);
   state.filters.minEle = Math.floor(Math.min(...elevations) / 100) * 100;
@@ -259,7 +262,7 @@ function visibleFeatures() {
 
 function setStatus(id, status) {
   const key = String(id);
-  const feature = state.features.find(f => String(f.properties.id) === key);
+  const feature = state.byId.get(key);
   if (!feature) return;
 
   if (status === 'none') {
@@ -289,7 +292,7 @@ function taggedEntries() {
   const entries = [];
   for (const [id, entry] of state.statuses) {
     if (!entry || entry.status === 'none') continue;
-    const feature = state.features.find(f => String(f.properties.id) === id);
+    const feature = state.byId.get(id);
     entries.push({ id, entry, feature });
   }
   return entries.sort((a, b) =>
@@ -531,7 +534,7 @@ function renderTaggedList() {
 
   el.querySelectorAll('.peaks-tagged-row').forEach(row => {
     row.addEventListener('click', () => {
-      const feature = state.features.find(f => String(f.properties.id) === row.dataset.id);
+      const feature = state.byId.get(row.dataset.id);
       if (!feature) return;
       state.map.flyTo({ center: feature.geometry.coordinates, zoom: 13.5 });
       openPicker(feature);
@@ -578,7 +581,7 @@ async function importStatuses(event) {
       const status = entry?.status;
       if (!status || !(status in STATUSES)) continue;
       state.statuses.set(String(id), entry);
-      const feature = state.features.find(f => String(f.properties.id) === String(id));
+      const feature = state.byId.get(String(id));
       if (feature) feature.properties.status = status;
       applied++;
     }

@@ -14,14 +14,27 @@
  * Data © OpenStreetMap contributors, ODbL.
  */
 
-import { writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
-// Bavarian Prealps / Karwendel / Tirol — the area the journal already covers.
+/**
+ * Two regions with different elevation floors, because "what can I do on a
+ * Saturday" and "what is worth a week's planning" are different questions.
+ *
+ * Home keeps the local 1200 m hills that make up most of the journal; the wider
+ * Eastern Alps only contributes serious objectives, which is what stops the
+ * snapshot ballooning to thousands of nondescript ridge bumps.
+ */
+const REGIONS = [
+  { name: 'home',        bbox: '47.15,10.75,47.95,12.45', minEle: 1200 },
+  { name: 'eastern-alps', bbox: '46.4,9.8,48.0,13.6',     minEle: 2500 }
+];
+
 const DEFAULTS = {
-  bbox: '47.2,11.0,47.9,12.3',   // south,west,north,east
-  minEle: 1000,
+  regions: REGIONS,
   countries: ['DE', 'AT', 'IT', 'CH'],
   out: 'data/peaks.geojson',
+  statusFile: 'data/peak-status.json',
   includeUnnamed: false
 };
 
@@ -32,43 +45,75 @@ const ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.private.coffee/api/interpreter'
 ];
-const ATTEMPTS_PER_ENDPOINT = 2;
+// The main instance is the only one that reliably answers the country-area
+// queries; the mirrors time out on them. So give it several patient attempts
+// before falling back, rather than treating all three as equals.
+const ATTEMPTS_PER_ENDPOINT = 3;
+const RATE_LIMIT_WAIT_MS = 45000;
+const BUSY_WAIT_MS = 8000;
 const USER_AGENT = 'my-mountaineering-jorney/1.0 (peak snapshot importer; https://github.com/bpspricigo/my-mountaineering-jorney)';
 
 // ─── Args ─────────────────────────────────────────────────────────────────────
 
 function parseArgs(argv) {
   const opts = { ...DEFAULTS };
+  let bbox = null;
+  let minEle = null;
+
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (arg === '--bbox') opts.bbox = argv[++i];
-    else if (arg === '--min-ele') opts.minEle = Number(argv[++i]);
+    if (arg === '--bbox') bbox = argv[++i];
+    else if (arg === '--min-ele') minEle = Number(argv[++i]);
     else if (arg === '--out') opts.out = argv[++i];
     else if (arg === '--countries') opts.countries = argv[++i].split(',').map(c => c.trim()).filter(Boolean);
     else if (arg === '--include-unnamed') opts.includeUnnamed = true;
+    else if (arg === '--no-keep-tagged') opts.statusFile = null;
+    else if (arg === '--no-cache') cacheEnabled = false;
     else if (arg === '--help' || arg === '-h') { usage(); process.exit(0); }
     else { console.error(`Unknown argument: ${arg}`); usage(); process.exit(1); }
   }
-  const parts = opts.bbox.split(',').map(Number);
-  if (parts.length !== 4 || parts.some(Number.isNaN)) {
-    console.error(`Invalid --bbox "${opts.bbox}" — expected south,west,north,east`);
-    process.exit(1);
+
+  // A --bbox or --min-ele on the command line replaces the configured regions
+  // with the single ad-hoc one being asked for.
+  if (bbox !== null || minEle !== null) {
+    opts.regions = [{
+      name: 'custom',
+      bbox: bbox ?? REGIONS[0].bbox,
+      minEle: minEle ?? 0
+    }];
   }
-  if (!Number.isFinite(opts.minEle)) {
-    console.error('Invalid --min-ele — expected a number');
-    process.exit(1);
+
+  for (const region of opts.regions) {
+    const parts = region.bbox.split(',').map(Number);
+    if (parts.length !== 4 || parts.some(Number.isNaN)) {
+      console.error(`Invalid bbox "${region.bbox}" for region "${region.name}" — expected south,west,north,east`);
+      process.exit(1);
+    }
+    if (!Number.isFinite(region.minEle)) {
+      console.error(`Invalid minEle for region "${region.name}" — expected a number`);
+      process.exit(1);
+    }
   }
   return opts;
 }
 
 function usage() {
+  const regions = DEFAULTS.regions
+    .map(r => `                        ${r.name}: ${r.bbox} above ${r.minEle} m`)
+    .join('\n');
   console.log(`
 Usage: node scripts/fetch-peaks.mjs [options]
 
-  --bbox S,W,N,E      Bounding box to query      (default ${DEFAULTS.bbox})
-  --min-ele METRES    Drop peaks below this      (default ${DEFAULTS.minEle})
+Without arguments, fetches the regions configured in this file:
+${regions}
+
+  --bbox S,W,N,E      Query this box instead of the configured regions
+  --min-ele METRES    Elevation floor for --bbox
   --countries A,B     ISO codes to tag peaks by  (default ${DEFAULTS.countries.join(',')})
   --include-unnamed   Keep peaks with no name    (default: named only)
+  --no-keep-tagged    Do not force-include peaks already tagged in
+                      ${DEFAULTS.statusFile}
+  --no-cache          Ignore cached Overpass responses in ${CACHE_DIR}
   --out PATH          Output file                (default ${DEFAULTS.out})
 `.trim());
 }
@@ -77,8 +122,51 @@ Usage: node scripts/fetch-peaks.mjs [options]
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-async function overpass(query, label) {
+/**
+ * A full run is a dozen slow queries against a free service that is often busy,
+ * and failing on the last one used to mean refetching all of them. Responses
+ * are cached on disk by query, so a re-run only pays for what did not succeed.
+ */
+const CACHE_DIR = '.cache/overpass';
+let cacheEnabled = true;
+
+const cachePath = query =>
+  `${CACHE_DIR}/${createHash('sha1').update(query).digest('hex').slice(0, 16)}.json`;
+
+async function readCache(query) {
+  if (!cacheEnabled) return null;
+  try {
+    return JSON.parse(await readFile(cachePath(query), 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+async function writeCache(query, elements) {
+  if (!cacheEnabled) return;
+  try {
+    await mkdir(CACHE_DIR, { recursive: true });
+    await writeFile(cachePath(query), JSON.stringify({ query, elements }), 'utf8');
+  } catch (err) {
+    console.warn(`[cache] could not write: ${err.message}`);
+  }
+}
+
+/**
+ * `expectNonEmpty` guards the country lookups. A mirror can answer a country
+ * query with an empty set and no remark — a Swiss lookup came back with zero
+ * peaks while Piz Morteratsch sat in the results with no country at all. An
+ * empty answer is only believed when every endpoint agrees on it.
+ */
+async function overpass(query, label, { expectNonEmpty = false } = {}) {
+  const hit = await readCache(query);
+  if (hit) {
+    console.log(`[overpass] ${label} → ${hit.elements.length} elements (cached)`);
+    return hit.elements;
+  }
+
   const failures = [];
+  let emptyAnswers = 0;
 
   for (const endpoint of ENDPOINTS) {
     for (let attempt = 1; attempt <= ATTEMPTS_PER_ENDPOINT; attempt++) {
@@ -100,13 +188,38 @@ async function overpass(query, label) {
             throw new Error(`Overpass rejected "${label}": ${detail}\n${body.slice(0, 500)}`);
           }
           failures.push(`${host}: ${detail}`);
-          console.log(`[overpass] ${host} busy (${detail})`);
-          await sleep(5000);
+          // 429 means this client has used up its slots — a few seconds is not
+          // enough, and moving to a weaker mirror only trades it for a timeout.
+          const wait = res.status === 429 ? RATE_LIMIT_WAIT_MS : BUSY_WAIT_MS;
+          console.log(`[overpass] ${host} busy (${detail}) — waiting ${wait / 1000}s`);
+          await sleep(wait);
           continue;
         }
         const json = await res.json();
-        console.log(`[overpass] ${label} → ${json.elements?.length ?? 0} elements`);
-        return json.elements ?? [];
+
+        // A server-side timeout comes back as HTTP 200 with an empty element
+        // list and a `remark`. Without this check the run "succeeds" having
+        // silently dropped everything the query was supposed to return.
+        if (json.remark) {
+          failures.push(`${host}: ${json.remark}`);
+          console.log(`[overpass] ${host} returned a remark: ${json.remark}`);
+          await sleep(5000);
+          continue;
+        }
+
+        const elements = json.elements ?? [];
+
+        if (expectNonEmpty && elements.length === 0) {
+          emptyAnswers++;
+          failures.push(`${host}: empty result`);
+          console.log(`[overpass] ${host} returned nothing for "${label}" — trying elsewhere`);
+          await sleep(3000);
+          continue;
+        }
+
+        console.log(`[overpass] ${label} → ${elements.length} elements`);
+        await writeCache(query, elements);
+        return elements;
       } catch (err) {
         if (err.message?.startsWith('Overpass rejected')) throw err;
         failures.push(`${host}: ${err.message}`);
@@ -116,27 +229,55 @@ async function overpass(query, label) {
     }
   }
 
+  // Every endpoint that answered at all said "nothing here", so believe them:
+  // the country genuinely does not reach into this bbox.
+  if (expectNonEmpty && emptyAnswers === failures.length) {
+    console.log(`[overpass] ${label} → 0 elements (every endpoint agrees)`);
+    await writeCache(query, []);
+    return [];
+  }
+
   throw new Error(`All Overpass endpoints failed for "${label}":\n  ${failures.join('\n  ')}`);
 }
 
 /** Every peak node in the bbox that carries an elevation. */
 function peaksQuery(bbox) {
-  return `[out:json][timeout:120];
+  return `[out:json][timeout:180];
 node["natural"="peak"]["ele"](${bbox});
 out body;`;
+}
+
+/** Specific nodes by id, wherever they are and however low they are. */
+function idsQuery(ids) {
+  return `[out:json][timeout:120];
+node(id:${ids.join(',')});
+out body;`;
+}
+
+/** The boundary relation behind each ISO code — cheap, and cached like the rest. */
+function countryRelationsQuery(isoCodes) {
+  return `[out:json][timeout:60];
+rel["ISO3166-1"~"^(${isoCodes.join('|')})$"]["admin_level"="2"]["boundary"="administrative"];
+out ids tags;`;
 }
 
 /**
  * Ids of the peaks inside one country's boundary. Overpass resolves the country
  * relation to an area, so this is a real point-in-polygon test rather than a
  * guess from the coordinates — border ridges get the right side.
+ *
+ * The area is addressed by id rather than by ISO tag: resolving the tag made
+ * Germany time out on every endpoint, while the id form answers in ~20 s.
  */
-function countryQuery(bbox, iso) {
-  return `[out:json][timeout:180];
-area["ISO3166-1"="${iso}"]["admin_level"="2"]->.country;
+function countryQuery(bbox, areaId) {
+  return `[out:json][timeout:240];
+area(${areaId})->.country;
 node(area.country)["natural"="peak"]["ele"](${bbox});
 out ids;`;
 }
+
+/** Overpass turns relation N into area 3600000000 + N. */
+const AREA_ID_OFFSET = 3600000000;
 
 // ─── Tag parsing ──────────────────────────────────────────────────────────────
 
@@ -162,42 +303,145 @@ const round5 = n => Math.round(n * 1e5) / 1e5;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-async function main() {
-  const opts = parseArgs(process.argv.slice(2));
-  console.log(`[peaks] bbox=${opts.bbox} minEle=${opts.minEle}m named-only=${!opts.includeUnnamed}`);
+function toPeak(node, tags) {
+  return {
+    id: node.id,
+    name: tags.name?.trim() || null,
+    ele: parseElevation(tags.ele),
+    lat: round5(node.lat),
+    lon: round5(node.lon),
+    countries: new Set(),
+    prominence: parseElevation(tags.prominence),
+    wikidata: tags.wikidata ?? null,
+    wikipedia: tags.wikipedia ?? null
+  };
+}
 
-  const nodes = await overpass(peaksQuery(opts.bbox), 'peaks in bbox');
+/** The smallest box containing every region, for the country lookups. */
+function unionBbox(regions) {
+  const boxes = regions.map(r => r.bbox.split(',').map(Number));
+  return [
+    Math.min(...boxes.map(b => b[0])),
+    Math.min(...boxes.map(b => b[1])),
+    Math.max(...boxes.map(b => b[2])),
+    Math.max(...boxes.map(b => b[3]))
+  ].join(',');
+}
 
-  const dropped = { noElevation: 0, tooLow: 0, unnamed: 0 };
-  const peaks = new Map();
+/**
+ * Peaks already marked dream/planned/done must survive whatever the elevation
+ * floor is, or raising it would orphan them: the status file would point at
+ * peaks the map no longer knows about.
+ */
+async function keepTagged(peaks, statusFile, includeUnnamed) {
+  let status;
+  try {
+    status = JSON.parse(await readFile(statusFile, 'utf8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') console.warn(`[peaks] could not read ${statusFile}: ${err.message}`);
+    return;
+  }
+
+  const tagged = Object.entries(status.peaks ?? {})
+    .filter(([, entry]) => entry?.status && entry.status !== 'none')
+    .map(([id]) => id);
+  const missing = tagged.filter(id => !peaks.has(Number(id)));
+
+  if (!missing.length) {
+    console.log(`[peaks] all ${tagged.length} tagged peaks are already in range`);
+    return;
+  }
+
+  console.log(`[peaks] ${missing.length} tagged peaks fell outside the regions — fetching them by id`);
+  await sleep(1500);
+  const nodes = await overpass(idsQuery(missing), 'tagged peaks by id');
 
   for (const node of nodes) {
     const tags = node.tags ?? {};
-    const ele = parseElevation(tags.ele);
-    if (ele === null) { dropped.noElevation++; continue; }
-    if (ele < opts.minEle) { dropped.tooLow++; continue; }
-    const name = tags.name?.trim();
-    if (!name && !opts.includeUnnamed) { dropped.unnamed++; continue; }
+    const peak = toPeak(node, tags);
+    if (peak.ele === null) {
+      console.warn(`[peaks]   node ${node.id} has no usable elevation — skipped`);
+      continue;
+    }
+    if (!peak.name && !includeUnnamed) peak.name = `Peak ${node.id}`;
+    peak.keptBecauseTagged = true;
+    peaks.set(node.id, peak);
+    console.log(`[peaks]   kept ${peak.name} ${peak.ele} m`);
+  }
+}
 
-    peaks.set(node.id, {
-      id: node.id,
-      name: name || null,
-      ele,
-      lat: round5(node.lat),
-      lon: round5(node.lon),
-      countries: new Set(),
-      prominence: parseElevation(tags.prominence),
-      wikidata: tags.wikidata ?? null,
-      wikipedia: tags.wikipedia ?? null
-    });
+async function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  console.log('[peaks] regions:');
+  for (const r of opts.regions) console.log(`          ${r.name}: ${r.bbox} above ${r.minEle} m`);
+  console.log(`[peaks] named-only=${!opts.includeUnnamed}
+`);
+
+  const peaks = new Map();
+  const dropped = { noElevation: 0, tooLow: 0, unnamed: 0 };
+
+  for (const [index, region] of opts.regions.entries()) {
+    if (index > 0) await sleep(1500);
+    const nodes = await overpass(peaksQuery(region.bbox), `peaks in ${region.name}`);
+    let kept = 0;
+
+    for (const node of nodes) {
+      const tags = node.tags ?? {};
+      const peak = toPeak(node, tags);
+      if (peak.ele === null) { dropped.noElevation++; continue; }
+      if (peak.ele < region.minEle) { dropped.tooLow++; continue; }
+      if (!peak.name && !opts.includeUnnamed) { dropped.unnamed++; continue; }
+      // Overlapping regions: the first (lower floor) wins, which is what keeps
+      // the local hills inside the wider high-altitude box.
+      if (!peaks.has(node.id)) { peaks.set(node.id, peak); kept++; }
+    }
+
+    console.log(`[peaks] ${region.name}: kept ${kept} (running total ${peaks.size})
+`);
   }
 
-  console.log(`[peaks] kept ${peaks.size} — dropped ${dropped.noElevation} without elevation, ` +
-              `${dropped.tooLow} below ${opts.minEle}m, ${dropped.unnamed} unnamed`);
+  console.log(`[peaks] dropped ${dropped.noElevation} without elevation, ` +
+              `${dropped.tooLow} below their region floor, ${dropped.unnamed} unnamed`);
+
+  if (opts.statusFile) await keepTagged(peaks, opts.statusFile, opts.includeUnnamed);
+
+  const bbox = unionBbox(opts.regions);
+  const unresolved = [];
+
+  // One cheap lookup turns the ISO codes into boundary relation ids, so the
+  // expensive per-country queries can address the area directly.
+  const areaIds = new Map();
+  try {
+    const relations = await overpass(countryRelationsQuery(opts.countries), 'country boundaries', { expectNonEmpty: true });
+    for (const rel of relations) {
+      const iso = rel.tags?.['ISO3166-1'];
+      if (iso) areaIds.set(iso, AREA_ID_OFFSET + rel.id);
+    }
+    console.log(`[peaks] resolved boundaries: ${[...areaIds].map(([iso, id]) => `${iso}=${id}`).join(' ')}`);
+  } catch (err) {
+    console.warn(`[peaks] ⚠ could not resolve country boundaries: ${err.message.split('\n')[0]}`);
+  }
 
   for (const iso of opts.countries) {
+    const areaId = areaIds.get(iso);
+    if (!areaId) {
+      console.warn(`[peaks] ⚠ no boundary relation for ${iso} — skipping`);
+      unresolved.push(iso);
+      continue;
+    }
+
     await sleep(1500); // be a good citizen on a free, shared endpoint
-    const inCountry = await overpass(countryQuery(opts.bbox, iso), `peaks in ${iso}`);
+    let inCountry;
+    try {
+      inCountry = await overpass(countryQuery(bbox, areaId), `peaks in ${iso}`, { expectNonEmpty: true });
+    } catch (err) {
+      // Losing one country's labels is worth far less than throwing away every
+      // peak fetched so far, so carry on — but say so loudly, and record it in
+      // the file so a degraded snapshot cannot be mistaken for a complete one.
+      console.warn(`[peaks] ⚠ could not resolve ${iso}: ${err.message.split('\n')[0]}`);
+      unresolved.push(iso);
+      continue;
+    }
     let tagged = 0;
     for (const { id } of inCountry) {
       const peak = peaks.get(id);
@@ -222,28 +466,61 @@ async function main() {
         country: p.countries.size ? [...p.countries].sort().join('/') : null,
         ...(p.prominence !== null && { prominence: p.prominence }),
         ...(p.wikidata && { wikidata: p.wikidata }),
-        ...(p.wikipedia && { wikipedia: p.wikipedia })
+        ...(p.wikipedia && { wikipedia: p.wikipedia }),
+        ...(p.keptBecauseTagged && { keptBecauseTagged: true })
       }
     }));
 
   const collection = {
     type: 'FeatureCollection',
     generated: new Date().toISOString().slice(0, 10),
-    query: { bbox: opts.bbox, minEle: opts.minEle, namedOnly: !opts.includeUnnamed, countries: opts.countries },
+    query: {
+      regions: opts.regions.map(({ name, bbox: box, minEle }) => ({ name, bbox: box, minEle })),
+      namedOnly: !opts.includeUnnamed,
+      countries: opts.countries,
+      ...(unresolved.length && { unresolvedCountries: unresolved })
+    },
     attribution: '© OpenStreetMap contributors (ODbL)',
     features
   };
 
-  // One feature per line: still valid JSON, but a re-run produces a diff you can
-  // actually read instead of one giant changed line.
   const { features: _features, ...head } = collection;
   const headJson = JSON.stringify(head, null, 2).replace(/\n}$/, '');
+  // One feature per line: still valid JSON, but a re-run produces a diff you can
+  // actually read instead of one giant changed line.
   const body = features.map(f => '    ' + JSON.stringify(f)).join(',\n');
   await writeFile(opts.out, `${headJson},\n  "features": [\n${body}\n  ]\n}\n`, 'utf8');
 
-  console.log(`[peaks] wrote ${features.length} peaks → ${opts.out}`);
-  const highest = features[0];
-  if (highest) console.log(`[peaks] highest: ${highest.properties.name} ${highest.properties.ele} m (${highest.properties.country ?? '—'})`);
+  console.log(`\n[peaks] wrote ${features.length} peaks → ${opts.out}`);
+  summarise(features);
+
+  if (unresolved.length) {
+    console.warn(`\n[peaks] ⚠ THIS SNAPSHOT IS INCOMPLETE — no country resolved for ${unresolved.join(', ')}.`);
+    console.warn('[peaks]   Those peaks carry a null country and match no country filter.');
+    console.warn('[peaks]   Re-run to fix it; cached responses make the retry cheap.');
+    process.exitCode = 2;
+  }
+}
+
+/**
+ * The first run of this script produced a snapshot of "Bavaria and Tirol" whose
+ * highest peak was 2884 m — no Zugspitze, no Grossglockner, because the bbox was
+ * drawn around the existing journal entries. Printing the highest peak per
+ * country makes that class of mistake obvious instead of invisible.
+ */
+function summarise(features) {
+  const byCountry = new Map();
+  for (const f of features) {
+    for (const iso of (f.properties.country ?? '??').split('/')) {
+      const best = byCountry.get(iso);
+      if (!best || f.properties.ele > best.properties.ele) byCountry.set(iso, f);
+    }
+  }
+  console.log('[peaks] highest per country:');
+  for (const [iso, f] of [...byCountry].sort((a, b) => b[1].properties.ele - a[1].properties.ele)) {
+    console.log(`          ${iso}: ${f.properties.name} ${f.properties.ele} m`);
+  }
+  console.log('[peaks] sanity-check those against the real highest summits of each country.');
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

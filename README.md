@@ -84,18 +84,42 @@ node scripts/fetch-peaks.mjs
 ```
 
 Queries the Overpass API for `natural=peak` nodes and writes `data/peaks.geojson`.
-No dependencies — Node 18+ only. Defaults to the Bavarian Prealps / Karwendel /
-Tirol box above 1000 m, named peaks only:
+No dependencies — Node 18+ only.
+
+The snapshot is built from **regions with their own elevation floors**, configured
+at the top of the script, because "what can I do on a Saturday" and "what is worth
+a week of planning" are different questions:
+
+| region | box | floor | covers |
+|---|---|---|---|
+| `home` | `47.15,10.75,47.95,12.45` | 1200 m | local hills, Karwendel, Zugspitze |
+| `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, Dolomites |
+
+That currently yields **6,761 named peaks** from 1200 m (Schwarzenbergeck) to
+3905 m (Ortler), including Zugspitze and Großglockner — a 1.4 MB file.
+
+Overlapping regions keep the lower floor, so local 1200 m hills survive inside the
+high-altitude box. Edit `REGIONS` to change the coverage, or query an ad-hoc box:
 
 ```bash
 node scripts/fetch-peaks.mjs --bbox 46.0,10.0,48.0,13.0 --min-ele 1500
 node scripts/fetch-peaks.mjs --help
 ```
 
+**Raising a floor cannot orphan a peak you have tagged.** Before writing, the
+script re-reads `data/peak-status.json` and force-fetches by OSM id any tagged
+peak the floors would have excluded, marking it `keptBecauseTagged`. Disable with
+`--no-keep-tagged`.
+
 Each peak is tagged with its country by asking Overpass which national boundary
 contains it, so summits on the DE/AT border come back as `AT/DE` and match a
 filter for either. Overpass is a free shared service and its instances are often
 busy; the script falls back across three mirrors and retries before giving up.
+
+The run ends by printing the **highest peak per country**. Check it. The first
+snapshot of this project covered "Bavaria and Tirol" and topped out at 2884 m —
+no Zugspitze, no Großglockner — because the box had been drawn around the hikes
+already in the journal rather than around where it was worth going next.
 
 Peak data © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/).
 
