@@ -92,11 +92,13 @@ a week of planning" are different questions:
 
 | region | box | floor | covers |
 |---|---|---|---|
-| `home` | `47.15,10.75,47.95,12.45` | 1200 m | local hills, Karwendel, Zugspitze |
+| `home` | `47.15,10.75,47.95,12.45` | 1500 m | local hills, Karwendel, Zugspitze |
 | `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, Dolomites |
+| `alps-3000-*` | the Alpine arc, in three strips | 3000 m | Mont Blanc, Monte Rosa, Bernina, Gran Paradiso |
 
-That currently yields **6,761 named peaks** from 1200 m (Schwarzenbergeck) to
-3905 m (Ortler), including Zugspitze and Großglockner — a 1.4 MB file.
+That currently yields **9,197 named peaks** from 1261 m to 4807 m (Mont Blanc),
+across 7 countries — a 2.1 MB file. The arc is split into strips because querying
+it as one box used 133 s of a 300 s timeout.
 
 Overlapping regions keep the lower floor, so local 1200 m hills survive inside the
 high-altitude box. Edit `REGIONS` to change the coverage, or query an ad-hoc box:
@@ -122,6 +124,36 @@ no Zugspitze, no Großglockner — because the box had been drawn around the hik
 already in the journal rather than around where it was worth going next.
 
 Peak data © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/).
+
+### Which peaks appear at which zoom
+
+A snapshot this size cannot be drawn all at once — 9,197 dots is not a map, it is
+a texture. Which peaks appear is decided by **isolation**: the distance from a
+summit to the nearest higher ground.
+
+Isolation is what separates a mountain from a bump on the side of one. It is
+computed at build time by walking peaks from the highest down, so the answer for
+Großglockner and its neighbour is unambiguous:
+
+| peak | elevation | isolation | drawn from |
+|---|---|---|---|
+| Großglockner | 3798 m | 174.88 km | z6 |
+| Kleinglockner | 3770 m | **0.07 km** | z14 |
+| Zugspitze | 2962 m | 25.76 km | z8 |
+| Schneefernerkopf | 2874 m | 1.78 km | z11 |
+
+28 m of elevation separates the first two; isolation separates them by a factor
+of 2,500. So zoomed out near Großglockner you see one mountain, and Kleinglockner
+appears when you are close enough to be planning the summit itself.
+
+Elevation deliberately has no say in this. An earlier version let anything above
+3500 m appear early, which put twelve summits on screen around Großglockner — the
+massif's towers are all ~3700 m and 50 m apart, exactly the clutter this removes.
+
+Peaks you have tagged appear two zoom levels earlier than they otherwise would,
+so your own list stays findable without stacking two dots on one massif. The
+**Detail** slider in the panel shifts the whole ladder if you want to see
+everything in an area regardless.
 
 ### Seeding from summits.json
 

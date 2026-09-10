@@ -728,3 +728,11 @@ body.tab-wide main {
     height: 60vh;
   }
 }
+
+.peaks-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-top: 0.3rem;
+}

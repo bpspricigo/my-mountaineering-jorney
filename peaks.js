@@ -43,9 +43,28 @@ const state = {
     maxEle: 3000,
     statuses: new Set([...TAGGED, 'none']),
     countries: new Set(),    // empty = all
-    search: ''
+    search: '',
+    // Shifts the whole zoom ladder: negative shows more, positive shows less.
+    detail: 0
   }
 };
+
+/**
+ * A peak is drawn once the map reaches the zoom its isolation earned it, so a
+ * secondary summit like Kleinglockner (70 m from Großglockner) stays hidden
+ * until you are close enough for it to mean something.
+ *
+ * Tagged peaks come in two levels early — enough to keep your own list findable
+ * without stacking two green dots on one massif at country scale.
+ */
+const TAGGED_ZOOM_BOOST = 2;
+
+/**
+ * The peak's own zoom tier, defaulting to "always visible" when the property is
+ * absent — an older snapshot should degrade to showing everything, never to a
+ * blank map.
+ */
+const PEAK_MIN_ZOOM = ['coalesce', ['get', 'minZoom'], 0];
 
 // ─── Local storage ────────────────────────────────────────────────────────────
 
@@ -159,6 +178,14 @@ function buildMap() {
       STATUSES.none.color
     ];
 
+    // A peak that dominates its surroundings should look like it. `rank` runs
+    // from 0 for a minor secondary summit to 1 for something like Großglockner.
+    const rank = ['interpolate', ['linear'], PEAK_MIN_ZOOM,
+      6, 1,
+      10, 0.55,
+      14, 0
+    ];
+
     map.addLayer({
       id: 'peaks-dots',
       type: 'circle',
@@ -166,9 +193,9 @@ function buildMap() {
       paint: {
         'circle-color': statusColor,
         'circle-radius': ['interpolate', ['linear'], ['zoom'],
-          7,  ['case', isTagged, 4, 2],
-          10, ['case', isTagged, 6, 3.5],
-          14, ['case', isTagged, 11, 6]
+          7,  ['+', 1.5, ['*', rank, 3.5], ['case', isTagged, 1.5, 0]],
+          10, ['+', 2.5, ['*', rank, 4.5], ['case', isTagged, 2, 0]],
+          14, ['+', 4.5, ['*', rank, 6], ['case', isTagged, 3, 0]]
         ],
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': ['case', isTagged, 2, 1],
@@ -183,28 +210,33 @@ function buildMap() {
       layout: {
         'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
         'text-font': ['Noto Sans Regular'],
-        'text-size': ['interpolate', ['linear'], ['zoom'], 9, 10, 14, 13],
+        // Dominant peaks get a larger label as well as an earlier one.
+        'text-size': ['interpolate', ['linear'], ['zoom'],
+          9,  ['+', 9.5, ['*', rank, 3]],
+          14, ['+', 11.5, ['*', rank, 3.5]]
+        ],
         'text-offset': [0, 1.1],
         'text-anchor': 'top',
         'text-optional': true,
-        // Tagged peaks get placed first, then the highest summits.
-        'symbol-sort-key': ['+', ['case', isTagged, 0, 10000], ['-', 4000, ['get', 'ele']]]
+        // When two labels collide the more dominant peak keeps its name, and a
+        // tagged peak outranks an untagged one of the same standing.
+        'symbol-sort-key': ['+',
+          ['*', PEAK_MIN_ZOOM, 10],
+          ['case', isTagged, 0, 5]
+        ]
       },
       paint: {
         'text-color': '#33302c',
         'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4,
-        // Untagged peaks would drown the map at low zoom, so fade them in.
-        // `zoom` has to be the direct input to `interpolate`, hence the `case`
-        // sitting in the output stops rather than wrapping the whole thing.
-        'text-opacity': ['interpolate', ['linear'], ['zoom'],
-          10.5, ['case', isTagged, 1, 0],
-          11.5, 1
-        ]
+        'text-halo-width': 1.4
       }
     });
 
     applyFilters();
+
+    // The count of what is on screen changes with zoom, not just with filters.
+    map.on('zoomend', renderCounts);
+    map.on('moveend', renderCounts);
 
     map.on('click', 'peaks-dots', e => openPicker(e.features[0]));
     map.on('mouseenter', 'peaks-dots', e => {
@@ -230,7 +262,8 @@ function applyFilters() {
   const filter = ['all',
     ['>=', ['get', 'ele'], minEle],
     ['<=', ['get', 'ele'], maxEle],
-    ['in', ['get', 'status'], ['literal', [...statuses]]]
+    ['in', ['get', 'status'], ['literal', [...statuses]]],
+    zoomRankFilter()
   ];
   // country is "AT", "DE" or "AT/DE" for a border summit — a substring test
   // matches the border case under either country.
@@ -245,15 +278,38 @@ function applyFilters() {
   renderCounts();
 }
 
+/**
+ * Show a peak once the map reaches its `minZoom`, with a discount for tagged
+ * peaks and for the detail slider. MapLibre does allow `zoom` inside a filter;
+ * it is evaluated at integer zoom levels, which is all this needs.
+ */
+function zoomRankFilter() {
+  const effectiveMinZoom = ['-',
+    // A snapshot generated before minZoom existed would otherwise make this
+    // arithmetic fail on null and hide every peak on the map.
+    PEAK_MIN_ZOOM,
+    ['case', ['!=', ['get', 'status'], 'none'], TAGGED_ZOOM_BOOST, 0]
+  ];
+  return ['<=', ['-', effectiveMinZoom, state.filters.detail], ['zoom']];
+}
+
+/** Mirrors zoomRankFilter() for the panel counters, which have no map zoom. */
+function passesZoomRank(properties, zoom) {
+  const boost = properties.status !== 'none' ? TAGGED_ZOOM_BOOST : 0;
+  return (properties.minZoom ?? 0) - boost - state.filters.detail <= zoom;
+}
+
 function visibleFeatures() {
   const { minEle, maxEle, statuses, countries, search } = state.filters;
   const needle = search.trim().toLowerCase();
+  const zoom = Math.floor(state.map?.getZoom() ?? 9);
   return state.features.filter(f => {
     const p = f.properties;
     if (p.ele < minEle || p.ele > maxEle) return false;
     if (!statuses.has(p.status)) return false;
     if (countries.size && ![...countries].some(c => p.country.includes(c))) return false;
     if (needle && !(p.name ?? '').toLowerCase().includes(needle)) return false;
+    if (!passesZoomRank(p, zoom)) return false;
     return true;
   });
 }
@@ -325,6 +381,7 @@ function openPicker(feature) {
       ${p.ele} m${p.prominence ? ` · ${p.prominence} m prominence` : ''}
       ${p.country && p.country !== '??' ? ` · ${p.country.split('/').map(c => COUNTRY_NAMES[c] ?? c).join(' / ')}` : ''}
     </p>
+    <p class="peak-picker-meta">${describeIsolation(p.isolation)}</p>
     <div class="peak-picker-options"></div>
     <div class="peak-picker-links">
       <a href="https://www.openstreetmap.org/node/${p.id}" target="_blank" rel="noopener">OSM</a>
@@ -357,6 +414,17 @@ function openPicker(feature) {
     .addTo(state.map);
 }
 
+/**
+ * Says in words what the isolation figure means, since it is the thing deciding
+ * whether a peak is treated as a mountain or as part of its bigger neighbour.
+ */
+function describeIsolation(metres) {
+  if (metres === null || metres === undefined) return 'Highest peak in the dataset';
+  if (metres < 500) return `A secondary summit — higher ground only ${Math.round(metres)} m away`;
+  if (metres < 2000) return `${(metres / 1000).toFixed(1)} km to higher ground`;
+  return `${Math.round(metres / 1000)} km to higher ground — a dominant peak`;
+}
+
 const wikipediaHost = tag => {
   const [lang, ...rest] = String(tag).split(':');
   return rest.length
@@ -382,6 +450,12 @@ function buildPanel(peaks) {
       <label class="peaks-field">
         <span>Search</span>
         <input type="search" id="peaks-search" placeholder="Peak name…" autocomplete="off">
+      </label>
+
+      <label class="peaks-field">
+        <span>Detail — <output id="peaks-detail-out">balanced</output></span>
+        <input type="range" id="peaks-detail" min="-2" max="3" step="1" value="0">
+        <small class="peaks-hint">Secondary summits stay hidden until you zoom in. Slide right to reveal them sooner.</small>
       </label>
 
       <label class="peaks-field">
@@ -484,6 +558,15 @@ function wirePanel() {
   document.getElementById('peaks-country-filters').addEventListener('change', e => {
     const box = e.target;
     state.filters.countries[box.checked ? 'add' : 'delete'](box.value);
+    applyFilters();
+  });
+
+  const detail = document.getElementById('peaks-detail');
+  const detailOut = document.getElementById('peaks-detail-out');
+  const DETAIL_LABELS = { '-2': 'major peaks only', '-1': 'sparse', 0: 'balanced', 1: 'more', 2: 'dense', 3: 'everything' };
+  detail.addEventListener('input', () => {
+    state.filters.detail = Number(detail.value);
+    detailOut.textContent = DETAIL_LABELS[detail.value] ?? detail.value;
     applyFilters();
   });
 
