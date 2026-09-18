@@ -42,14 +42,17 @@ const state = {
 };
 
 /**
- * A peak is drawn once the map reaches the zoom its isolation earned it, so a
- * secondary summit like Kleinglockner (70 m from Großglockner) stays hidden
- * until you are close enough for it to mean something.
+ * An untagged peak is drawn once the map reaches the zoom its isolation earned
+ * it, so a secondary summit like Kleinglockner (70 m from Großglockner) stays
+ * hidden until you are close enough for it to mean something.
  *
- * Tagged peaks come in two levels early — enough to keep your own list findable
- * without stacking two green dots on one massif at country scale.
+ * Tagged peaks have no zoom tier. They are drawn at every zoom and compete for
+ * space instead: where two would overlap, the one earlier in this list keeps
+ * its place, so a done peak is never pushed out by a planned one. Lower
+ * statuses fill whatever room is left, and filtering a status out frees its
+ * room for the rest.
  */
-const TAGGED_ZOOM_BOOST = 2;
+const STATUS_PRIORITY = ['done', 'planned', 'dream', 'attempted'];
 
 /**
  * The peak's own zoom tier, defaulting to "always visible" when the property is
@@ -145,11 +148,7 @@ function buildMap() {
 
     map.addSource('peaks', { type: 'geojson', data: collection(), promoteId: 'id' });
 
-    const isTagged = ['!=', ['get', 'status'], 'none'];
-    const statusColor = ['match', ['get', 'status'],
-      ...Object.entries(STATUSES).flatMap(([key, { color }]) => [key, color]),
-      STATUSES.none.color
-    ];
+    addStatusIcons(map);
 
     // A peak that dominates its surroundings should look like it. `rank` runs
     // from 0 for a minor secondary summit to 1 for something like Großglockner.
@@ -159,20 +158,21 @@ function buildMap() {
       14, 0
     ];
 
+    // Untagged peaks: plain dots, which never collide, gated by zoom tier.
     map.addLayer({
       id: 'peaks-dots',
       type: 'circle',
       source: 'peaks',
       paint: {
-        'circle-color': statusColor,
+        'circle-color': STATUSES.none.color,
         'circle-radius': ['interpolate', ['linear'], ['zoom'],
-          7,  ['+', 1.5, ['*', rank, 3.5], ['case', isTagged, 1.5, 0]],
-          10, ['+', 2.5, ['*', rank, 4.5], ['case', isTagged, 2, 0]],
-          14, ['+', 4.5, ['*', rank, 6], ['case', isTagged, 3, 0]]
+          7,  ['+', 1.5, ['*', rank, 3.5]],
+          10, ['+', 2.5, ['*', rank, 4.5]],
+          14, ['+', 4.5, ['*', rank, 6]]
         ],
         'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': ['case', isTagged, 2, 1],
-        'circle-opacity': ['case', isTagged, 1, 0.85]
+        'circle-stroke-width': 1,
+        'circle-opacity': 0.85
       }
     });
 
@@ -181,28 +181,38 @@ function buildMap() {
       type: 'symbol',
       source: 'peaks',
       layout: {
-        'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
-        'text-font': ['Noto Sans Regular'],
-        // Dominant peaks get a larger label as well as an earlier one.
-        'text-size': ['interpolate', ['linear'], ['zoom'],
-          9,  ['+', 9.5, ['*', rank, 3]],
-          14, ['+', 11.5, ['*', rank, 3.5]]
-        ],
-        'text-offset': [0, 1.1],
-        'text-anchor': 'top',
-        'text-optional': true,
-        // When two labels collide the more dominant peak keeps its name, and a
-        // tagged peak outranks an untagged one of the same standing.
-        'symbol-sort-key': ['+',
-          ['*', PEAK_MIN_ZOOM, 10],
-          ['case', isTagged, 0, 5]
-        ]
+        ...labelLayout(rank),
+        // When two labels collide the more dominant peak keeps its name.
+        'symbol-sort-key': PEAK_MIN_ZOOM
       },
-      paint: {
-        'text-color': '#33302c',
-        'text-halo-color': '#ffffff',
-        'text-halo-width': 1.4
-      }
+      paint: LABEL_PAINT
+    });
+
+    // Tagged peaks: icons rather than circles, because only symbols take part
+    // in collision. Added last, so they are placed before every other label
+    // on the map and nothing untagged can crowd them out.
+    const statusRank = ['match', ['get', 'status'],
+      ...STATUS_PRIORITY.flatMap((key, i) => [key, i]),
+      STATUS_PRIORITY.length
+    ];
+    map.addLayer({
+      id: 'peaks-tagged',
+      type: 'symbol',
+      source: 'peaks',
+      layout: {
+        ...labelLayout(rank),
+        'icon-image': ['concat', 'status-', ['get', 'status']],
+        // Same sizes the tagged circles had; the icon's inner radius is 10 px.
+        'icon-size': ['interpolate', ['linear'], ['zoom'],
+          7,  ['/', ['+', 3, ['*', rank, 3.5]], 10],
+          10, ['/', ['+', 4.5, ['*', rank, 4.5]], 10],
+          14, ['/', ['+', 7.5, ['*', rank, 6]], 10]
+        ],
+        'icon-padding': 1,
+        // Placed in ascending order: status first, dominance within a status.
+        'symbol-sort-key': ['+', ['*', statusRank, 100], PEAK_MIN_ZOOM]
+      },
+      paint: LABEL_PAINT
     });
 
     applyFilters();
@@ -211,17 +221,61 @@ function buildMap() {
     map.on('zoomend', renderCounts);
     map.on('moveend', renderCounts);
 
-    map.on('click', 'peaks-dots', e => openPicker(e.features[0]));
-    map.on('mouseenter', 'peaks-dots', e => {
-      map.getCanvas().style.cursor = 'pointer';
-      showHover(e.features[0]);
-    });
-    map.on('mouseleave', 'peaks-dots', () => {
-      map.getCanvas().style.cursor = '';
-      state.hoverPopup?.remove();
-      state.hoverPopup = null;
-    });
+    for (const layer of ['peaks-dots', 'peaks-tagged']) {
+      map.on('click', layer, e => openPicker(e.features[0]));
+      map.on('mouseenter', layer, e => {
+        map.getCanvas().style.cursor = 'pointer';
+        showHover(e.features[0]);
+      });
+      map.on('mouseleave', layer, () => {
+        map.getCanvas().style.cursor = '';
+        state.hoverPopup?.remove();
+        state.hoverPopup = null;
+      });
+    }
   });
+}
+
+const LABEL_PAINT = {
+  'text-color': '#33302c',
+  'text-halo-color': '#ffffff',
+  'text-halo-width': 1.4
+};
+
+function labelLayout(rank) {
+  return {
+    'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
+    'text-font': ['Noto Sans Regular'],
+    // Dominant peaks get a larger label as well as an earlier one.
+    'text-size': ['interpolate', ['linear'], ['zoom'],
+      9,  ['+', 9.5, ['*', rank, 3]],
+      14, ['+', 11.5, ['*', rank, 3.5]]
+    ],
+    'text-offset': [0, 1.1],
+    'text-anchor': 'top',
+    // A crowded label drops before its dot does.
+    'text-optional': true
+  };
+}
+
+/**
+ * One dot per status, drawn on a canvas at 2x so it stays crisp: a 10 px disc
+ * in the status colour inside a 2 px white ring, the look the circles had.
+ */
+function addStatusIcons(map) {
+  const radius = 20, ring = 4, size = 2 * (radius + ring);
+  for (const key of TAGGED) {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    for (const [r, color] of [[radius + ring, '#ffffff'], [radius, STATUSES[key].color]]) {
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, r, 0, 2 * Math.PI);
+      ctx.fillStyle = color;
+      ctx.fill();
+    }
+    map.addImage(`status-${key}`, ctx.getImageData(0, 0, size, size), { pixelRatio: 2 });
+  }
 }
 
 function refreshSource() {
@@ -235,8 +289,7 @@ function applyFilters() {
   const filter = ['all',
     ['>=', ['get', 'ele'], minEle],
     ['<=', ['get', 'ele'], maxEle],
-    ['in', ['get', 'status'], ['literal', [...statuses]]],
-    zoomRankFilter()
+    ['in', ['get', 'status'], ['literal', [...statuses]]]
   ];
   // country is "AT", "DE" or "AT/DE" for a border summit — a substring test
   // matches the border case under either country.
@@ -247,29 +300,32 @@ function applyFilters() {
     filter.push(['in', search.trim().toLowerCase(), ['downcase', ['coalesce', ['get', 'name'], '']]]);
   }
 
-  for (const id of ['peaks-dots', 'peaks-labels']) state.map.setFilter(id, filter);
+  const untagged = [...filter, ['==', ['get', 'status'], 'none'], zoomRankFilter()];
+  state.map.setFilter('peaks-dots', untagged);
+  state.map.setFilter('peaks-labels', untagged);
+  state.map.setFilter('peaks-tagged', [...filter, ['!=', ['get', 'status'], 'none']]);
   renderCounts();
 }
 
 /**
- * Show a peak once the map reaches its `minZoom`, with a discount for tagged
- * peaks and for the detail slider. MapLibre does allow `zoom` inside a filter;
- * it is evaluated at integer zoom levels, which is all this needs.
+ * Show an untagged peak once the map reaches its `minZoom`, shifted by the
+ * detail slider. MapLibre does allow `zoom` inside a filter; it is evaluated
+ * at integer zoom levels, which is all this needs. PEAK_MIN_ZOOM defaults to 0,
+ * so a snapshot generated before minZoom existed shows everything rather than
+ * failing on null and hiding every peak.
  */
 function zoomRankFilter() {
-  const effectiveMinZoom = ['-',
-    // A snapshot generated before minZoom existed would otherwise make this
-    // arithmetic fail on null and hide every peak on the map.
-    PEAK_MIN_ZOOM,
-    ['case', ['!=', ['get', 'status'], 'none'], TAGGED_ZOOM_BOOST, 0]
-  ];
-  return ['<=', ['-', effectiveMinZoom, state.filters.detail], ['zoom']];
+  return ['<=', ['-', PEAK_MIN_ZOOM, state.filters.detail], ['zoom']];
 }
 
-/** Mirrors zoomRankFilter() for the panel counters, which have no map zoom. */
+/**
+ * Mirrors the layer filters for the panel counters. Tagged peaks pass at any
+ * zoom; whether one actually fits on screen is up to collision, which the
+ * counter cannot see.
+ */
 function passesZoomRank(properties, zoom) {
-  const boost = properties.status !== 'none' ? TAGGED_ZOOM_BOOST : 0;
-  return (properties.minZoom ?? 0) - boost - state.filters.detail <= zoom;
+  if (properties.status !== 'none') return true;
+  return (properties.minZoom ?? 0) - state.filters.detail <= zoom;
 }
 
 function visibleFeatures() {

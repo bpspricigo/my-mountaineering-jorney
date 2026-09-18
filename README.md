@@ -186,10 +186,15 @@ Elevation deliberately has no say in this. An earlier version let anything above
 3500 m appear early, which put twelve summits on screen around Großglockner — the
 massif's towers are all ~3700 m and 50 m apart, exactly the clutter this removes.
 
-Peaks you have tagged appear two zoom levels earlier than they otherwise would,
-so your own list stays findable without stacking two dots on one massif. The
-**Detail** slider in the panel shifts the whole ladder if you want to see
-everything in an area regardless.
+Peaks you have tagged ignore that ladder. They are drawn at every zoom and
+compete for screen space by status instead — **done**, then **planned**,
+**dream**, **attempted**. Where two would overlap, the higher status keeps its
+place, so zooming out never swaps a done peak for a planned one; lower statuses
+fill whatever room is left, and unticking a status in the filter hands its room
+to the rest. Within a status, the more dominant peak wins.
+
+The **Detail** slider in the panel shifts the ladder for untagged peaks if you
+want to see everything in an area regardless.
 
 ### Seeding from summits.json
 
