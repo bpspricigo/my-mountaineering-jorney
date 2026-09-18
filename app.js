@@ -30,15 +30,22 @@ function activateTab(name) {
   document.querySelectorAll('.tab-content').forEach(el => {
     el.hidden = el.id !== `tab-${name}`;
   });
+  // The peak planner takes the whole window; the reading tabs stay a column.
+  document.body.classList.toggle('tab-fullscreen', name === 'peaks');
   if (!initializedTabs.has(name)) {
     initializedTabs.add(name);
     initTab(name);
+  } else if (name === 'peaks') {
+    // The container had no size while the tab was hidden, so MapLibre needs
+    // telling that it has one again — otherwise the map comes back stretched.
+    resizePeaksMap();   // peaks.js
   }
 }
 
 async function initTab(name) {
   if (name === 'journal') await initJournal();
   else if (name === 'planner') await initPlanner();
+  else if (name === 'peaks') await initPeaks();   // peaks.js
   else if (name === 'summits') await initSummits();
 }
 
