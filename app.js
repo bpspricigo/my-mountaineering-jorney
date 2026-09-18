@@ -53,9 +53,12 @@ async function initTab(name) {
 
 let hikeIndex = null;
 
-// Kick off the default tab on load
-console.log('[app] DOM ready, activating journal tab');
-activateTab('journal');
+// Kick off the default tab on load, or the one a link asked for — the sign-in
+// email sends people back to ?tab=peaks.
+const requestedTab = new URLSearchParams(location.search).get('tab');
+const firstTab = document.getElementById(`tab-${requestedTab}`) ? requestedTab : 'journal';
+console.log(`[app] DOM ready, activating ${firstTab} tab`);
+activateTab(firstTab);
 async function getHikeIndex() {
   if (!hikeIndex) {
     console.log('[app] fetching data/hikes.json…');

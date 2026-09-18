@@ -97,6 +97,18 @@ async function initPeaks() {
 
   buildPanel(peaks);
   buildMap();
+
+  // Signing in or out swaps the whole list for the other backend's.
+  PeakStore.onChange(statuses => {
+    state.statuses = statuses;
+    for (const feature of state.features) {
+      feature.properties.status = statuses.get(String(feature.properties.id))?.status ?? 'none';
+    }
+    refreshSource();
+    applyFilters();
+    renderTaggedList();
+    renderAccount();
+  });
 }
 
 // ─── Map ──────────────────────────────────────────────────────────────────────
@@ -294,7 +306,10 @@ async function setStatus(id, status) {
         updated: new Date().toISOString().slice(0, 10)
       };
 
-  await PeakStore.set(key, entry);
+  if (!(await PeakStore.set(key, entry))) {
+    flash(`Could not save ${feature.properties.name} — try again`, true);
+    return;
+  }
 
   feature.properties.status = status;
   refreshSource();
@@ -469,6 +484,7 @@ function buildPanel(peaks) {
         </label>
       </div>
       <p id="peaks-save-state" class="peaks-note"></p>
+      <div id="peaks-account" class="peaks-account"></div>
       <p class="peaks-note peaks-source">
         ${state.features.length} peaks · snapshot ${peaks.generated ?? '—'} ·
         ${peaks.attribution ?? '© OpenStreetMap contributors'}
@@ -478,6 +494,7 @@ function buildPanel(peaks) {
 
   wirePanel();
   renderTaggedList();
+  renderAccount();
 }
 
 function wirePanel() {
@@ -569,10 +586,9 @@ function renderCounts() {
 }
 
 /**
- * Says whether this browser holds edits the committed baseline does not, since
- * tagging a peak only writes to localStorage until the file is exported and
- * committed. Proper persistence arrives with the backend (#3); until then the
- * least this can do is not pretend the work is saved.
+ * Says where tagging a peak actually writes. Signed in, that is the account.
+ * Signed out it is localStorage, which nobody else sees until the file is
+ * exported and committed, so the least this can do is not pretend it is saved.
  */
 function renderSaveState() {
   const el = document.getElementById('peaks-save-state');
@@ -587,8 +603,66 @@ function renderSaveState() {
     el.innerHTML = 'In step with <code>data/peak-status.json</code>.';
   } else {
     el.innerHTML = `<strong>${changed} change${changed === 1 ? '' : 's'} in ${PeakStore.describe()} only.</strong>
-       Export and commit the file as <code>data/peak-status.json</code> to keep them.`;
+       ${PeakStore.account().available
+         ? 'Sign in below to keep them in your account, or export'
+         : 'Export'} and commit the file as <code>data/peak-status.json</code>.`;
   }
+}
+
+// ─── Account ──────────────────────────────────────────────────────────────────
+
+/** Sign-in by magic link. Absent entirely when config.js has no Supabase. */
+function renderAccount() {
+  const el = document.getElementById('peaks-account');
+  if (!el) return;
+
+  const { available, email } = PeakStore.account();
+  if (!available) {
+    el.hidden = true;
+    return;
+  }
+
+  if (email) {
+    el.innerHTML = `
+      <span class="peaks-account-who">Signed in as <strong>${escapeHtml(email)}</strong></span>
+      <button type="button" id="peaks-sign-out">Sign out</button>
+    `;
+    el.querySelector('#peaks-sign-out').addEventListener('click', async () => {
+      try {
+        await PeakStore.signOut();
+      } catch (err) {
+        console.error('[peaks] sign-out failed:', err);
+        flash('Could not sign out', true);
+      }
+    });
+    return;
+  }
+
+  el.innerHTML = `
+    <form id="peaks-sign-in" class="peaks-sign-in">
+      <label class="peaks-field">
+        <span>Sync across devices</span>
+        <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required>
+      </label>
+      <button type="submit">Email me a sign-in link</button>
+    </form>
+  `;
+  const form = el.querySelector('#peaks-sign-in');
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const email = form.email.value.trim();
+    const button = form.querySelector('button');
+    button.disabled = true;
+    try {
+      await PeakStore.signIn(email);
+      el.innerHTML = `<p class="peaks-note">Check <strong>${escapeHtml(email)}</strong> for a sign-in link.
+        Open it on this device and your list moves to your account.</p>`;
+    } catch (err) {
+      console.error('[peaks] sign-in failed:', err);
+      flash(err?.message ?? 'Could not send the link', true);
+      button.disabled = false;
+    }
+  });
 }
 
 function renderTaggedList() {

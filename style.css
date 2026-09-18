@@ -555,7 +555,8 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   color: var(--text-muted);
 }
 
-.peaks-field input[type="search"] {
+.peaks-field input[type="search"],
+.peaks-field input[type="email"] {
   width: 100%;
   padding: 0.45rem 0.6rem;
   border: 1.5px solid var(--border);
@@ -666,7 +667,8 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
 }
 
 .peaks-buttons button,
-.peaks-import {
+.peaks-import,
+.peaks-account button {
   flex: 1;
   text-align: center;
   padding: 0.45rem 0.6rem;
@@ -682,7 +684,8 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
 }
 
 .peaks-buttons button:hover,
-.peaks-import:hover {
+.peaks-import:hover,
+.peaks-account button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
 }
@@ -860,6 +863,49 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   color: var(--text-muted);
   line-height: 1.45;
   margin-top: 0.3rem;
+}
+
+/* ─── Account ─────────────────────────────────────────────────────────────── */
+.peaks-account {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.peaks-account-who {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.peaks-account-who strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.peaks-sign-in {
+  flex: 1;
+}
+
+.peaks-sign-in .peaks-field {
+  margin-bottom: 0.5rem;
+}
+
+.peaks-sign-in button {
+  width: 100%;
+}
+
+.peaks-account button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.peaks-account .peaks-note {
+  margin-top: 0;
 }
 
 /* ─── Save state ────────────────────────────────────────────────────────────── */

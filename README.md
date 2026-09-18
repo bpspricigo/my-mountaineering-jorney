@@ -64,7 +64,7 @@ elevation, country, status or name.
 
 ### Where the statuses live
 
-Two layers merged at load, local edits winning:
+**Signed out**, two layers are merged at load, local edits winning:
 
 | layer | scope |
 |---|---|
@@ -75,7 +75,17 @@ Tagging a peak only writes to `localStorage`. To keep the change, hit **Export
 JSON** and save the download over `data/peak-status.json`, then commit it — that
 file becomes the new baseline. **Import** reads an export back in.
 
-This is deliberately a static site; accounts and a real database are [issue #3](https://github.com/bpspricigo/my-mountaineering-jorney/issues/3).
+**Signed in** (email magic link, in the panel under *Your list*), the
+`peak_status` table in Supabase is the whole truth and every tag writes straight
+to it. The first sign-in on an empty account seeds it from what the browser
+shows at that moment — the baseline plus any local edits. After that the file is
+not read for that account; export still works as a backup.
+
+Supabase is optional. Copy `config.example.js` to `config.js`; leave the
+`SUPABASE_*` keys out and the sign-in form never appears. The schema is in
+`supabase/migrations/`. In the Supabase dashboard, under *Authentication → URL
+Configuration*, add every origin you serve from (e.g. `http://127.0.0.1:5501/**`)
+to the redirect URLs, or the link in the email falls back to the Site URL.
 
 ### Regenerating the peak snapshot
 
