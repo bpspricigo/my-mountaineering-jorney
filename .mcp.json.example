@@ -9,7 +9,7 @@
         "--project-ref=ewykonzyqctvnphgatuq"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "${SUPABASE_ACCESS_TOKEN}"
+        "SUPABASE_ACCESS_TOKEN": "sbp_your_personal_access_token"
       }
     }
   }
