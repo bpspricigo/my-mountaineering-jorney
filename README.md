@@ -103,12 +103,12 @@ a week of planning" are different questions:
 | region | box | floor | covers |
 |---|---|---|---|
 | `home` | `47.15,10.75,47.95,12.45` | 1500 m | local hills, Karwendel, Zugspitze |
-| `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, northern Dolomites |
+| `eastern-alps` | `46.4,9.45,48.0,13.6` | 2500 m | Rätikon and Liechtenstein, Hohe Tauern, Ötztal, Zillertal, northern Dolomites |
 | `dolomites` | `46.0,10.7,46.8,12.8` | 2000 m | all of the Dolomites incl. Pala, Belluno, Brenta; Lagorai, Sarntal Alps |
 | `alps-3000-*` | the Alpine arc, in three strips | 3000 m | Mont Blanc, Monte Rosa, Bernina, Gran Paradiso |
 | `notable` | the Alpine arc | 1500 m **and prominence ≥ 300 m** | range high points below the 3000 m rule |
 
-That currently yields **11,462 named peaks** from 1261 m to 4807 m (Mont Blanc),
+That currently yields **11,667 named peaks** from 1261 m to 4807 m (Mont Blanc),
 across 7 countries — a 2.7 MB file, including all 82 official UIAA
 four-thousanders. The arc is split into strips because querying it as one box
 used 133 s of a 300 s timeout.

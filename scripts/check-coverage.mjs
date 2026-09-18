@@ -135,6 +135,7 @@ const MUST_HAVE = [
   { name: 'Zugspitze', ele: 2962, why: 'highest in Germany' },
   { name: 'Großglockner', ele: 3798, why: 'highest in Austria' },
   { name: 'Dufourspitze', ele: 4634, why: 'highest in Switzerland' },
+  { name: 'Vorder Grauspitz', ele: 2599, why: 'highest in Liechtenstein' },
   { name: 'Watzmann', ele: 2713, why: 'named objective' },
   { name: 'Wildspitze', ele: 3768, why: 'highest in Tirol' },
   { name: 'Neureuth', ele: 1261, why: 'climbed, below the home floor' }
