@@ -35,13 +35,17 @@
     </div>
 
     <div id="tab-peaks" class="tab-content" hidden>
-      <div class="tab-intro">
-        <h2>Peak Planner</h2>
-        <p>Every peak in the region. Click one to mark it as a dream, a plan, or done.</p>
-      </div>
-      <div class="peaks-layout">
-        <aside id="peaks-panel" class="peaks-panel"></aside>
+      <!-- The map is the page here; everything else floats over it. -->
+      <div class="peaks-stage">
         <div id="peaks-map" class="map map--peaks"></div>
+
+        <button type="button" id="peaks-panel-toggle" class="peaks-panel-toggle"
+                aria-controls="peaks-panel" aria-expanded="true" title="Hide the panel">
+          <span aria-hidden="true">‹</span>
+          <span class="visually-hidden">Toggle the planner panel</span>
+        </button>
+
+        <aside id="peaks-panel" class="peaks-panel" aria-label="Peak planner controls"></aside>
       </div>
     </div>
 

@@ -159,7 +159,8 @@ function buildMap() {
     customAttribution: 'Peak data © OpenStreetMap contributors (ODbL)'
   }), 'bottom-right');
   map.addControl(new maplibregl.NavigationControl(), 'top-right');
-  map.addControl(new maplibregl.ScaleControl({ maxWidth: 120 }), 'bottom-left');
+  // Bottom-left belongs to the floating panel now.
+  map.addControl(new maplibregl.ScaleControl({ maxWidth: 120 }), 'bottom-right');
 
   map.on('error', e => console.error('[peaks] map error:', e?.error?.message ?? e));
 
@@ -442,6 +443,11 @@ function buildPanel(peaks) {
   const { minEle, maxEle } = state.filters;
 
   document.getElementById('peaks-panel').innerHTML = `
+    <header class="peaks-panel-head">
+      <h2>Peak Planner</h2>
+      <p>Click any peak to mark it.</p>
+    </header>
+
     <div id="peaks-counts" class="peaks-counts"></div>
 
     <section class="peaks-filters">
@@ -504,10 +510,7 @@ function buildPanel(peaks) {
           <input type="file" id="peaks-import" accept="application/json,.json" hidden>
         </label>
       </div>
-      <p class="peaks-note">
-        Edits live in this browser. Export and commit the file as
-        <code>data/peak-status.json</code> to share them across devices.
-      </p>
+      <p id="peaks-save-state" class="peaks-note"></p>
       <p class="peaks-note peaks-source">
         ${state.features.length} peaks · snapshot ${peaks.generated ?? '—'} ·
         ${peaks.attribution ?? '© OpenStreetMap contributors'}
@@ -572,6 +575,17 @@ function wirePanel() {
 
   document.getElementById('peaks-export').addEventListener('click', exportStatuses);
   document.getElementById('peaks-import').addEventListener('change', importStatuses);
+
+  const toggle = document.getElementById('peaks-panel-toggle');
+  toggle.addEventListener('click', () => {
+    const collapsed = document.body.classList.toggle('peaks-panel-collapsed');
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.title = collapsed ? 'Show the panel' : 'Hide the panel';
+    toggle.firstElementChild.textContent = collapsed ? '›' : '‹';
+    // The map keeps its full size underneath; only the overlay moves, so there
+    // is nothing to resize — but the centre of what you can see has shifted.
+    state.map?.easeTo({ duration: 200 });
+  });
 }
 
 function renderCounts() {
@@ -596,6 +610,31 @@ function renderCounts() {
   `;
 }
 
+/**
+ * Says whether this browser holds edits the committed baseline does not, since
+ * tagging a peak only writes to localStorage until the file is exported and
+ * committed. Proper persistence arrives with the backend (#3); until then the
+ * least this can do is not pretend the work is saved.
+ */
+function renderSaveState() {
+  const el = document.getElementById('peaks-save-state');
+  if (!el) return;
+
+  let changed = 0;
+  const ids = new Set([...Object.keys(state.baseline), ...state.statuses.keys()]);
+  for (const id of ids) {
+    const before = state.baseline[id]?.status ?? 'none';
+    const after = state.statuses.get(id)?.status ?? 'none';
+    if (before !== after) changed++;
+  }
+
+  el.classList.toggle('is-unsaved', changed > 0);
+  el.innerHTML = changed === 0
+    ? 'In step with <code>data/peak-status.json</code>.'
+    : `<strong>${changed} change${changed === 1 ? '' : 's'} in this browser only.</strong>
+       Export and commit the file as <code>data/peak-status.json</code> to keep them.`;
+}
+
 function renderTaggedList() {
   const el = document.getElementById('peaks-tagged');
   if (!el) return;
@@ -604,6 +643,7 @@ function renderTaggedList() {
   if (!entries.length) {
     el.innerHTML = '<p class="peaks-empty">Nothing tagged yet — click a peak on the map.</p>';
     renderCounts();
+    renderSaveState();
     return;
   }
 
@@ -625,6 +665,7 @@ function renderTaggedList() {
   });
 
   renderCounts();
+  renderSaveState();
 }
 
 // ─── Export / import ──────────────────────────────────────────────────────────
@@ -683,6 +724,15 @@ async function importStatuses(event) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Called by app.js when the Peaks tab is shown again. While a tab is hidden its
+ * container has no dimensions, so MapLibre's cached size is stale and the map
+ * comes back distorted until something forces a recalculation.
+ */
+function resizePeaksMap() {
+  state.map?.resize();
+}
 
 let flashTimer = null;
 
