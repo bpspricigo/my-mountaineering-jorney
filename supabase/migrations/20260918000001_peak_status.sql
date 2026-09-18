@@ -87,7 +87,7 @@ create policy "own statuses are deletable"
 create or replace function public.touch_updated_at()
 returns trigger
 language plpgsql
-security definer
+security invoker
 set search_path = ''
 as $$
 begin
