@@ -29,6 +29,13 @@ const REGIONS = [
   { name: 'home',         bbox: '47.15,10.75,47.95,12.45', minEle: 1500 },
   { name: 'eastern-alps', bbox: '46.4,9.8,48.0,13.6',      minEle: 2500 },
 
+  // The Dolomites deserve a lower floor than the rest of the east. Much of the
+  // walking there — Col di Lana, Monte Serva above Belluno — is 2000–2500 m,
+  // and eastern-alps stops at 46.4°N, which cuts through the range: the Pala
+  // group, Agnèr and the Belluno Dolomites fell below it with nothing to catch
+  // them under 3000 m. Also takes in Brenta, Lagorai and the Sarntal Alps.
+  { name: 'dolomites',    bbox: '46.0,10.7,46.8,12.8',     minEle: 2000 },
+
   // The whole Alpine arc, 3000 m and up. Split into strips because the arc as a
   // single box took 133 s of a 300 s budget — close enough to the ceiling that
   // a busy day would push it over.

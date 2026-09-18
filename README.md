@@ -103,12 +103,13 @@ a week of planning" are different questions:
 | region | box | floor | covers |
 |---|---|---|---|
 | `home` | `47.15,10.75,47.95,12.45` | 1500 m | local hills, Karwendel, Zugspitze |
-| `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, Dolomites |
+| `eastern-alps` | `46.4,9.8,48.0,13.6` | 2500 m | Hohe Tauern, Ötztal, Zillertal, northern Dolomites |
+| `dolomites` | `46.0,10.7,46.8,12.8` | 2000 m | all of the Dolomites incl. Pala, Belluno, Brenta; Lagorai, Sarntal Alps |
 | `alps-3000-*` | the Alpine arc, in three strips | 3000 m | Mont Blanc, Monte Rosa, Bernina, Gran Paradiso |
 | `notable` | the Alpine arc | 1500 m **and prominence ≥ 300 m** | range high points below the 3000 m rule |
 
-That currently yields **9,479 named peaks** from 1261 m to 4807 m (Mont Blanc),
-across 7 countries — a 2.2 MB file, including all 82 official UIAA
+That currently yields **11,462 named peaks** from 1261 m to 4807 m (Mont Blanc),
+across 7 countries — a 2.7 MB file, including all 82 official UIAA
 four-thousanders. The arc is split into strips because querying it as one box
 used 133 s of a 300 s timeout.
 
@@ -162,7 +163,7 @@ Peak data © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/lice
 
 ### Which peaks appear at which zoom
 
-A snapshot this size cannot be drawn all at once — 9,197 dots is not a map, it is
+A snapshot this size cannot be drawn all at once — 11,000 dots is not a map, it is
 a texture. Which peaks appear is decided by **isolation**: the distance from a
 summit to the nearest higher ground.
 
