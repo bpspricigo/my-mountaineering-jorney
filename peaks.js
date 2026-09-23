@@ -497,16 +497,73 @@ function openPicker(feature) {
   }
 
   state.popup?.remove();
-  state.popup = new maplibregl.Popup({ offset: 14, maxWidth: '340px', className: 'peak-popup' })
+  // anchor 'top' — the popup hangs below the peak — is not a look but a
+  // rendering fix. MapLibre rounds the popup's position, then adds the
+  // anchor's own translate: 'bottom' means translateY(-100%) of a box whose
+  // height is fractional (rem padding, line boxes), which lands the text on a
+  // half pixel and blurs every glyph. 'top' translates by 0 vertically, and
+  // the 320 px content width in the stylesheet keeps -50% whole horizontally.
+  state.popup = new maplibregl.Popup({ offset: 14, maxWidth: '320px', className: 'peak-popup', anchor: 'top' })
     .setLngLat(feature.geometry.coordinates)
     .setDOMContent(el)
     .addTo(state.map);
 
   renderPeakRoutes(el.querySelector('#peak-routes'), id);
+  // After the outings are in, not before: the popup is taller by then, and a
+  // measurement taken too early pans by less than it needs to.
+  requestAnimationFrame(keepPopupOnScreen);
 
   // Clicking a peak you have walked shows the walk, which is the whole point
   // of having the tracks here.
-  for (const route of RouteStore.forPeak(id)) drawTrack(route);
+  const drawnNow = RouteStore.forPeak(id).filter(route => drawTrack(route));
+  if (drawnNow.length) fitTracks(drawnNow);
+}
+
+/**
+ * A popup anchored below its peak runs off the bottom when the peak is low on
+ * screen, and a fixed anchor never flips. So move the map instead, which keeps
+ * the peak, its popup and the rounding all intact.
+ */
+function keepPopupOnScreen() {
+  const node = document.querySelector('.peak-popup');
+  if (!node || !state.map) return;
+  const popup = node.getBoundingClientRect();
+  const canvas = state.map.getCanvas().getBoundingClientRect();
+  const overflow = popup.bottom - (canvas.bottom - 12);
+  if (overflow > 0) state.map.panBy([0, overflow], { duration: 250 });
+}
+
+/**
+ * Brings tracks into the part of the map nothing is covering. The popup opens
+ * above the peak and the panel sits down the left, so a track fitted to the
+ * whole canvas lands underneath one or the other; these paddings keep it in
+ * the clear. Clamped to the canvas, since MapLibre throws if padding exceeds
+ * the space it has.
+ */
+function fitTracks(routes = [...state.drawn.values()].map(f => RouteStore.get(f.properties.id))) {
+  const map = state.map;
+  const tracks = routes.filter(route => route?.track);
+  if (!map || !tracks.length) return;
+
+  const bounds = new maplibregl.LngLatBounds();
+  for (const route of tracks) {
+    for (const point of RouteStore.decode(route.track)) bounds.extend(point);
+  }
+
+  const { width, height } = map.getCanvas().getBoundingClientRect();
+  const panelOpen = !document.body.classList.contains('peaks-panel-collapsed');
+  const clamp = (value, limit) => Math.max(20, Math.min(value, limit));
+
+  map.fitBounds(bounds, {
+    padding: {
+      top: clamp(60, height * 0.15),
+      bottom: clamp(320, height * 0.42),   // the popup hangs here
+      left: clamp(panelOpen ? 350 : 60, width * 0.4),
+      right: clamp(60, width * 0.15)
+    },
+    maxZoom: 14.5,
+    duration: 700
+  });
 }
 
 // ─── Routes on a peak ─────────────────────────────────────────────────────────
@@ -547,14 +604,16 @@ function renderPeakRoutes(el, peakId) {
     </details>
   `).join('');
 
+  // Expanding an outing makes the popup taller, which can push it off screen.
+  el.querySelectorAll('.peak-route').forEach(details => {
+    details.addEventListener('toggle', () => requestAnimationFrame(keepPopupOnScreen));
+  });
+
   el.querySelectorAll('.peak-route-zoom').forEach(button => {
     button.addEventListener('click', () => {
       const route = RouteStore.get(button.closest('.peak-route').dataset.id);
       drawTrack(route);
-      if (route.bounds) {
-        const [west, south, east, north] = route.bounds;
-        state.map.fitBounds([[west, south], [east, north]], { padding: 60 });
-      }
+      fitTracks([route]);
     });
   });
 }
@@ -582,7 +641,7 @@ const trackCollection = () => ({
 });
 
 function drawTrack(route) {
-  if (!route?.track || state.drawn.has(route.id)) return;
+  if (!route?.track || state.drawn.has(route.id)) return false;
   state.drawn.set(route.id, {
     type: 'Feature',
     properties: { id: route.id, kind: route.kind, title: route.title },
@@ -590,6 +649,7 @@ function drawTrack(route) {
   });
   state.map?.getSource('tracks')?.setData(trackCollection());
   renderTrackBar();
+  return true;
 }
 
 function clearTracks() {
