@@ -365,7 +365,10 @@ const RouteForm = (() => {
     }
 
     if (form.tagPeaks.checked) {
-      for (const peak of peaks.values()) await setStatus(peak.peak_id, form.kind.value);
+      // A dated walk dates the summits it tags, so "last climbed" knows about
+      // this one without anyone typing the date twice.
+      const extra = row.kind === 'done' && row.date ? { date: row.date } : {};
+      for (const peak of peaks.values()) await setStatus(peak.peak_id, form.kind.value, extra);
     }
 
     dialog.close();

@@ -422,7 +422,12 @@ function visibleFeatures() {
 
 // ─── Status editing ───────────────────────────────────────────────────────────
 
-async function setStatus(id, status) {
+/**
+ * `extra` is merged into the entry — the outing form passes the walk's date, so
+ * tagging a summit from a dated outing records when it was climbed rather than
+ * only that it was.
+ */
+async function setStatus(id, status, extra = {}) {
   const key = String(id);
   const feature = state.byId.get(key);
   if (!feature) return;
@@ -436,7 +441,8 @@ async function setStatus(id, status) {
         name: feature.properties.name,
         ele: feature.properties.ele,
         country: feature.properties.country === '??' ? null : feature.properties.country,
-        updated: new Date().toISOString().slice(0, 10)
+        updated: new Date().toISOString().slice(0, 10),
+        ...extra
       };
 
   if (!(await PeakStore.set(key, entry))) {
@@ -1100,7 +1106,15 @@ function renderStats() {
     (t.entry.country ?? t.feature?.properties.country ?? '').split('/').filter(c => c && c !== '??')
   ));
   const stacked = done.reduce((sum, t) => sum + eleOf(t), 0);
-  const climbed = done.filter(t => t.entry.date).map(t => t.entry.date).sort();
+  // Both sources, because neither is complete on its own: a status carries a
+  // date only when something put one there (8 of 19 here, seeded from the old
+  // summits.json), while every outing has one. Reading statuses alone reported
+  // the last dated tag as the last climb, which is how a walk in September
+  // showed up as August.
+  const climbed = [
+    ...done.filter(t => t.entry.date).map(t => t.entry.date),
+    ...RouteStore.all().filter(route => route.kind === 'done' && route.date).map(route => route.date)
+  ].sort();
   const planned = tagged.filter(t => t.entry.status === 'planned');
   const nextUp = planned.length ? planned.reduce((a, b) => (eleOf(b) > eleOf(a) ? b : a)) : null;
 
