@@ -191,7 +191,9 @@ compete for screen space by status instead — **done**, then **planned**,
 **dream**, **attempted**. Where two would overlap, the higher status keeps its
 place, so zooming out never swaps a done peak for a planned one; lower statuses
 fill whatever room is left, and unticking a status in the filter hands its room
-to the rest. Within a status, the more dominant peak wins.
+to the rest. Within a status the higher summit wins — elevation here, not the
+isolation that ranks untagged peaks, because on a list of your own a 1261 m
+foothill outranking an 1884 m summit only reads as arbitrary.
 
 The **Detail** slider in the panel shifts the ladder for untagged peaks if you
 want to see everything in an area regardless.

@@ -209,8 +209,20 @@ function buildMap() {
           14, ['/', ['+', 7.5, ['*', rank, 6]], 10]
         ],
         'icon-padding': 1,
-        // Placed in ascending order: status first, dominance within a status.
-        'symbol-sort-key': ['+', ['*', statusRank, 100], PEAK_MIN_ZOOM]
+        // Placed in ascending order: status first, then the higher summit.
+        //
+        // Elevation, not the isolation ranking untagged peaks use. Isolation
+        // rewards standing alone, which is what thins 11,000 anonymous dots,
+        // but on your own list it reads as arbitrary: Neureuth (1261 m, 7.2 km
+        // from higher ground at the edge of the foothills) outranked Rotwand
+        // (1884 m, 5.7 km, hemmed in by the Spitzing peaks) and hid it.
+        //
+        // 9000 is above any Alpine summit, so the subtraction stays positive
+        // and below the 10000 that separates one status from the next.
+        'symbol-sort-key': ['+',
+          ['*', statusRank, 10000],
+          ['-', 9000, ['coalesce', ['get', 'ele'], 0]]
+        ]
       },
       paint: LABEL_PAINT
     });
