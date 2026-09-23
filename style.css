@@ -596,6 +596,13 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   cursor: pointer;
 }
 
+.peaks-check-count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .peaks-swatch {
   width: 11px;
   height: 11px;
@@ -863,6 +870,49 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   color: var(--text-muted);
   line-height: 1.45;
   margin-top: 0.3rem;
+}
+
+/* ─── Backup & sharing ──────────────────────────────────────────────────────── */
+.peaks-advanced {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.peaks-advanced summary {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.peaks-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The caret is drawn rather than inherited, so it can turn when open. */
+.peaks-advanced summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 0.35rem;
+  transition: transform 0.15s ease;
+}
+
+.peaks-advanced[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.peaks-advanced summary:hover {
+  color: var(--accent);
+}
+
+.peaks-advanced .peaks-note {
+  margin-top: 0.5rem;
+}
+
+.peaks-advanced .peaks-buttons {
+  margin-top: 0.6rem;
 }
 
 /* ─── Account ─────────────────────────────────────────────────────────────── */

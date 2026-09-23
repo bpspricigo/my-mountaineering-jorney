@@ -21,7 +21,18 @@ const STATUSES = {
 };
 const TAGGED = Object.keys(STATUSES).filter(s => s !== 'none');
 
-const COUNTRY_NAMES = { DE: 'Germany', AT: 'Austria', IT: 'Italy', CH: 'Switzerland', '??': 'Unknown' };
+// Every code the snapshot can carry — scripts/fetch-peaks.mjs tags peaks with
+// these seven, and '??' is a peak inside none of their boundaries.
+const COUNTRY_NAMES = {
+  DE: 'Germany',
+  AT: 'Austria',
+  IT: 'Italy',
+  CH: 'Switzerland',
+  FR: 'France',
+  SI: 'Slovenia',
+  LI: 'Liechtenstein',
+  '??': 'Unknown'
+};
 
 const state = {
   features: [],              // GeoJSON features, properties.status kept current
@@ -477,9 +488,17 @@ const wikipediaHost = tag => {
 // ─── Panel ────────────────────────────────────────────────────────────────────
 
 function buildPanel(peaks) {
-  const countries = [...new Set(
-    state.features.flatMap(f => f.properties.country.split('/'))
-  )].sort();
+  // Most peaks first, so the list starts where the walking is; '??' last,
+  // whatever its count, because it is a fallback rather than a place.
+  const counts = new Map();
+  for (const f of state.features) {
+    for (const code of f.properties.country.split('/')) {
+      counts.set(code, (counts.get(code) ?? 0) + 1);
+    }
+  }
+  const countries = [...counts.keys()].sort((a, b) =>
+    (a === '??') - (b === '??') || counts.get(b) - counts.get(a)
+  );
 
   const { minEle, maxEle } = state.filters;
 
@@ -535,6 +554,7 @@ function buildPanel(peaks) {
             <label class="peaks-check">
               <input type="checkbox" value="${code}">
               ${COUNTRY_NAMES[code] ?? code}
+              <span class="peaks-check-count">${counts.get(code)}</span>
             </label>
           `).join('')}
         </div>
@@ -544,15 +564,24 @@ function buildPanel(peaks) {
     <section class="peaks-actions">
       <h3>Your list</h3>
       <div id="peaks-tagged" class="peaks-tagged"></div>
-      <div class="peaks-buttons">
-        <button type="button" id="peaks-export">Export JSON</button>
-        <label class="peaks-import">
-          Import
-          <input type="file" id="peaks-import" accept="application/json,.json" hidden>
-        </label>
-      </div>
       <p id="peaks-save-state" class="peaks-note"></p>
       <div id="peaks-account" class="peaks-account"></div>
+
+      <details class="peaks-advanced">
+        <summary>Backup &amp; sharing</summary>
+        <p class="peaks-note">
+          A file of your tagged peaks — to keep a copy, move the list to another
+          account, or send someone your plans. Importing merges the file in; it
+          overwrites a peak only if the file has a status for it.
+        </p>
+        <div class="peaks-buttons">
+          <button type="button" id="peaks-export">Export JSON</button>
+          <label class="peaks-import">
+            Import
+            <input type="file" id="peaks-import" accept="application/json,.json" hidden>
+          </label>
+        </div>
+      </details>
       <p class="peaks-note peaks-source">
         ${state.features.length} peaks · snapshot ${peaks.generated ?? '—'} ·
         ${peaks.attribution ?? '© OpenStreetMap contributors'}
