@@ -735,6 +735,113 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   text-decoration: underline;
 }
 
+/* Buttons in the popup's link row read as links, not as another tag option. */
+.peak-picker-links button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.peak-picker-links button:hover {
+  text-decoration: underline;
+}
+
+/* ─── Outings on a peak ─────────────────────────────────────────────────────── */
+.peak-routes {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.peak-routes-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.peak-route summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.15rem 0;
+}
+
+.peak-route summary::-webkit-details-marker {
+  display: none;
+}
+
+.peak-route-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.peak-route-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peak-route-date {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.peak-route-stats {
+  font-size: 0.75rem;
+  color: var(--text);
+  padding: 0.15rem 0 0.3rem 1.05rem;
+}
+
+.peak-route-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 0 0 0.35rem 1.05rem;
+}
+
+.peak-route .peak-picker-links {
+  margin-left: 1.05rem;
+  border-top: none;
+  padding-top: 0.1rem;
+}
+
+/* ─── Tracks on the map ─────────────────────────────────────────────────────── */
+.peaks-tracks {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  background: var(--chip-bg);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+}
+
+.peaks-tracks button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
 .peak-popup .maplibregl-popup-content {
   border-radius: 10px;
   padding: 0.85rem 1rem 0.9rem;

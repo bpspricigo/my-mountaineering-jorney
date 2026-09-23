@@ -325,8 +325,15 @@ const PeakStore = (() => {
   const isShared = () => Boolean(backend?.shared);
   const describe = () => backend?.label ?? 'nowhere yet';
 
+  /**
+   * The signed-in session, for the other stores. Statuses work signed out and
+   * own this client; routes (routes.js) need an account and borrow it rather
+   * than opening a second one, which would mean two sessions of one person.
+   */
+  const database = () => ({ client, user });
+
   return {
     open, get, set, all, pendingCount, toExport, importAll, isShared, describe,
-    account, signIn, signOut, onChange
+    account, signIn, signOut, onChange, db: database
   };
 })();

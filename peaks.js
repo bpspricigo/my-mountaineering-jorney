@@ -41,6 +41,9 @@ const state = {
   map: null,
   popup: null,
   hoverPopup: null,
+  // route id → the track drawn on the map. Tracks stay until cleared, so a
+  // planned line can be held against one already walked.
+  drawn: new Map(),
   filters: {
     minEle: 1000,
     maxEle: 3000,
@@ -91,6 +94,7 @@ async function initPeaks() {
   }
 
   state.statuses = await PeakStore.open();
+  await RouteStore.open();
 
   state.features = peaks.features.map(f => ({
     ...f,
@@ -113,11 +117,14 @@ async function initPeaks() {
   buildMap();
 
   // Signing in or out swaps the whole list for the other backend's.
-  PeakStore.onChange(statuses => {
+  PeakStore.onChange(async statuses => {
     state.statuses = statuses;
     for (const feature of state.features) {
       feature.properties.status = statuses.get(String(feature.properties.id))?.status ?? 'none';
     }
+    // Routes live only in an account, so signing out empties them.
+    clearTracks();
+    await RouteStore.open();
     refreshSource();
     applyFilters();
     renderTaggedList();
@@ -160,6 +167,34 @@ function buildMap() {
     map.addSource('peaks', { type: 'geojson', data: collection(), promoteId: 'id' });
 
     addStatusIcons(map);
+
+    // Tracks go on first, so every peak draws over them.
+    map.addSource('tracks', { type: 'geojson', data: trackCollection() });
+    map.addLayer({
+      id: 'tracks-casing',
+      type: 'line',
+      source: 'tracks',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 3.5, 14, 8],
+        'line-opacity': 0.75
+      }
+    });
+    map.addLayer({
+      id: 'tracks-line',
+      type: 'line',
+      source: 'tracks',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: {
+        'line-color': ['match', ['get', 'kind'],
+          'done', STATUSES.done.color,
+          'planned', STATUSES.planned.color,
+          '#555'
+        ],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 1.5, 14, 4]
+      }
+    });
 
     // A peak that dominates its surroundings should look like it. `rank` runs
     // from 0 for a minor secondary summit to 1 for something like Großglockner.
@@ -436,6 +471,7 @@ function openPicker(feature) {
     </p>
     <p class="peak-picker-meta">${describeIsolation(p.isolation)}</p>
     <div class="peak-picker-options"></div>
+    <div class="peak-routes" id="peak-routes"></div>
     <div class="peak-picker-links">
       <a href="https://www.openstreetmap.org/node/${p.id}" target="_blank" rel="noopener">OSM</a>
       ${p.wikipedia ? `<a href="https://${wikipediaHost(p.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}
@@ -461,10 +497,119 @@ function openPicker(feature) {
   }
 
   state.popup?.remove();
-  state.popup = new maplibregl.Popup({ offset: 14, maxWidth: '320px', className: 'peak-popup' })
+  state.popup = new maplibregl.Popup({ offset: 14, maxWidth: '340px', className: 'peak-popup' })
     .setLngLat(feature.geometry.coordinates)
     .setDOMContent(el)
     .addTo(state.map);
+
+  renderPeakRoutes(el.querySelector('#peak-routes'), id);
+
+  // Clicking a peak you have walked shows the walk, which is the whole point
+  // of having the tracks here.
+  for (const route of RouteStore.forPeak(id)) drawTrack(route);
+}
+
+// ─── Routes on a peak ─────────────────────────────────────────────────────────
+
+function renderPeakRoutes(el, peakId) {
+  if (!el) return;
+
+  if (!RouteStore.available()) {
+    el.innerHTML = '<p class="peak-routes-empty">Sign in to keep tracks, photos and notes against a peak.</p>';
+    return;
+  }
+
+  const routes = RouteStore.forPeak(peakId);
+  if (!routes.length) {
+    el.innerHTML = '<p class="peak-routes-empty">No outing recorded here yet.</p>';
+    return;
+  }
+
+  el.innerHTML = routes.map(route => `
+    <details class="peak-route" data-id="${route.id}">
+      <summary>
+        <span class="peak-route-dot" style="background:${STATUSES[route.kind]?.color ?? '#555'}"></span>
+        <span class="peak-route-title">${escapeHtml(route.title)}</span>
+        <span class="peak-route-date">${route.date ? formatStatDate(route.date) : STATUSES[route.kind]?.label ?? ''}</span>
+      </summary>
+      <p class="peak-route-stats">${describeRoute(route)}</p>
+      ${route.description ? `<p class="peak-route-note">${escapeHtml(route.description)}</p>` : ''}
+      ${route.notes ? `<p class="peak-route-note">${escapeHtml(route.notes)}</p>` : ''}
+      ${route.peaks?.length > 1
+        ? `<p class="peak-route-note">Also: ${route.peaks.filter(p => String(p.peak_id) !== String(peakId)).map(p => escapeHtml(p.name ?? p.peak_id)).join(', ')}</p>`
+        : ''}
+      <div class="peak-picker-links">
+        ${route.strava_url ? `<a href="${escapeHtml(route.strava_url)}" target="_blank" rel="noopener">Strava</a>` : ''}
+        ${route.photos_url ? `<a href="${escapeHtml(route.photos_url)}" target="_blank" rel="noopener">Photos</a>` : ''}
+        ${(route.links ?? []).map(l => `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.label)}</a>`).join('')}
+        ${route.track ? `<button type="button" class="peak-route-zoom">Zoom to track</button>` : ''}
+      </div>
+    </details>
+  `).join('');
+
+  el.querySelectorAll('.peak-route-zoom').forEach(button => {
+    button.addEventListener('click', () => {
+      const route = RouteStore.get(button.closest('.peak-route').dataset.id);
+      drawTrack(route);
+      if (route.bounds) {
+        const [west, south, east, north] = route.bounds;
+        state.map.fitBounds([[west, south], [east, north]], { padding: 60 });
+      }
+    });
+  });
+}
+
+/** "12.3 km · 1216 m up · 6:30 h · Hard", skipping whatever is missing. */
+function describeRoute(route) {
+  const bits = [];
+  if (route.distance_m) bits.push(`${(route.distance_m / 1000).toFixed(1)} km`);
+  if (route.ascent_m) bits.push(`${route.ascent_m} m up`);
+  if (route.moving_seconds) {
+    const hours = Math.floor(route.moving_seconds / 3600);
+    const minutes = Math.round((route.moving_seconds % 3600) / 60);
+    bits.push(`${hours}:${String(minutes).padStart(2, '0')} h`);
+  }
+  if (route.difficulty) bits.push(escapeHtml(route.difficulty));
+  if (route.location) bits.push(escapeHtml(route.location));
+  return bits.join(' · ') || 'No stats recorded';
+}
+
+// ─── Tracks on the map ────────────────────────────────────────────────────────
+
+const trackCollection = () => ({
+  type: 'FeatureCollection',
+  features: [...state.drawn.values()]
+});
+
+function drawTrack(route) {
+  if (!route?.track || state.drawn.has(route.id)) return;
+  state.drawn.set(route.id, {
+    type: 'Feature',
+    properties: { id: route.id, kind: route.kind, title: route.title },
+    geometry: { type: 'LineString', coordinates: RouteStore.decode(route.track) }
+  });
+  state.map?.getSource('tracks')?.setData(trackCollection());
+  renderTrackBar();
+}
+
+function clearTracks() {
+  state.drawn.clear();
+  state.map?.getSource('tracks')?.setData(trackCollection());
+  renderTrackBar();
+}
+
+/** Only present while something is drawn — otherwise it is a row saying zero. */
+function renderTrackBar() {
+  const el = document.getElementById('peaks-tracks');
+  if (!el) return;
+  const count = state.drawn.size;
+  el.hidden = count === 0;
+  if (!count) return;
+  el.innerHTML = `
+    <span>${count} track${count === 1 ? '' : 's'} on the map</span>
+    <button type="button" id="peaks-clear-tracks">Clear</button>
+  `;
+  el.querySelector('#peaks-clear-tracks').addEventListener('click', clearTracks);
 }
 
 /**
@@ -510,6 +655,7 @@ function buildPanel(peaks) {
 
     <div id="peaks-counts" class="peaks-counts"></div>
     <dl id="peaks-stats" class="peaks-stats"></dl>
+    <div id="peaks-tracks" class="peaks-tracks" hidden></div>
 
     <section class="peaks-filters">
       <h3>Filters</h3>
@@ -576,6 +722,9 @@ function buildPanel(peaks) {
           overwrites a peak only if the file has a status for it.
         </p>
         <div class="peaks-buttons">
+          <button type="button" id="peaks-import-hikes" hidden>Import old hikes</button>
+        </div>
+        <div class="peaks-buttons">
           <button type="button" id="peaks-export">Export JSON</button>
           <label class="peaks-import">
             Import
@@ -593,6 +742,120 @@ function buildPanel(peaks) {
   wirePanel();
   renderTaggedList();
   renderAccount();
+}
+
+// ─── Importing the repo's own hikes ───────────────────────────────────────────
+
+/**
+ * Pulls the folders under gpx/ into the account: one route each, its stats read
+ * from info.json where they exist and measured off the track where they do not,
+ * linked to whichever summits the walk actually passed over.
+ *
+ * Idempotent by folder name — a route remembers the folder it came from, so
+ * running this twice does not import anything twice.
+ */
+async function importRepoHikes(button) {
+  if (!RouteStore.available()) return flash('Sign in first — routes live in your account', true);
+
+  button.disabled = true;
+  const original = button.textContent;
+  let added = 0, skipped = 0, failed = 0;
+
+  try {
+    const index = await fetch('data/hikes.json').then(r => r.json());
+    const folders = [
+      ...(index.completed ?? []).map(folder => ['done', folder]),
+      ...(index.planned ?? []).map(folder => ['planned', folder])
+    ];
+
+    for (const [kind, folder] of folders) {
+      const source = `gpx/${folder}`;
+      if (RouteStore.hasSource(source)) { skipped++; continue; }
+
+      button.textContent = `Importing ${folder}…`;
+      try {
+        const info = await fetch(`${source}/info.json`).then(r => (r.ok ? r.json() : {}));
+        const gpx = await fetch(`${source}/track.gpx`).then(r => (r.ok ? r.text() : null));
+        const parsed = gpx ? RouteStore.readGpx(gpx) : null;
+
+        await RouteStore.save({
+          kind,
+          source,
+          title: info.title || folder,
+          // A planned walk has no date; the file's own timestamps beat a blank one.
+          date: info.date || parsed?.date || null,
+          location: info.location || null,
+          country: /^[A-Z]{2}$/.test(info.flag ?? '') ? info.flag : null,
+          description: info.description || null,
+          difficulty: info.difficulty || null,
+          // What you recorded wins; the track fills the gaps.
+          distance_m: parseDistance(info.distance) ?? parsed?.distance_m ?? null,
+          ascent_m: parseMetres(info.elevation) ?? parsed?.ascent_m ?? null,
+          moving_seconds: parseDuration(info.movingTime) ?? parsed?.moving_seconds ?? null,
+          photos_url: info.photos || null,
+          track: parsed?.track ?? null,
+          track_points: parsed?.track_points ?? null,
+          bounds: parsed?.bounds ?? null
+        }, parsed ? peaksAlong(parsed.fullPoints) : []);
+        added++;
+      } catch (err) {
+        console.error(`[routes] ${source} failed:`, err);
+        failed++;
+      }
+    }
+  } catch (err) {
+    console.error('[routes] import failed:', err);
+    flash('Could not read data/hikes.json', true);
+  }
+
+  button.disabled = false;
+  button.textContent = original;
+  renderTaggedList();
+  flash(`Imported ${added}${skipped ? `, ${skipped} already there` : ''}${failed ? `, ${failed} failed` : ''}`, failed > 0);
+}
+
+/**
+ * The summits a walk went over: peaks within 80 m of the recorded line. Wide
+ * enough for a GPS fix on a summit block, tight enough that a peak passed on
+ * the far side of the valley does not count as climbed.
+ */
+function peaksAlong(points, metres = 80) {
+  const lons = points.map(p => p[0]), lats = points.map(p => p[1]);
+  // A degree of latitude is ~111 km; pad the box so nothing on the edge is missed.
+  const pad = metres / 111000 * 2;
+  const box = [Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad];
+
+  const found = [];
+  for (const feature of state.features) {
+    const [lon, lat] = feature.geometry.coordinates;
+    if (lon < box[0] || lon > box[2] || lat < box[1] || lat > box[3]) continue;
+    const near = points.some(p => RouteStore.metresBetween(p, [lon, lat]) <= metres);
+    if (near) found.push({ peak_id: feature.properties.id, name: feature.properties.name, ele: feature.properties.ele });
+  }
+  return found;
+}
+
+/** "12.3 km" → 12300. Also takes a bare number, and metres. */
+function parseDistance(text) {
+  const value = parseFloat(String(text ?? '').replace(',', '.'));
+  if (!Number.isFinite(value)) return null;
+  return /\bm\b/.test(String(text)) && !/km/.test(String(text))
+    ? Math.round(value)
+    : Math.round(value * 1000);
+}
+
+/** "1216 m" → 1216. */
+function parseMetres(text) {
+  const value = parseFloat(String(text ?? '').replace(',', '.'));
+  return Number.isFinite(value) ? Math.round(value) : null;
+}
+
+/** "6:30 h" → 23400 seconds. */
+function parseDuration(text) {
+  const match = String(text ?? '').match(/(\d+):(\d{2})/);
+  if (match) return Number(match[1]) * 3600 + Number(match[2]) * 60;
+  const hours = parseFloat(String(text ?? '').replace(',', '.'));
+  return Number.isFinite(hours) ? Math.round(hours * 3600) : null;
 }
 
 function wirePanel() {
@@ -853,6 +1116,17 @@ function renderTaggedList() {
   renderCounts();
   renderStats();
   renderSaveState();
+  renderTrackBar();
+
+  // Importing needs an account, so the button appears only with one.
+  const importButton = document.getElementById('peaks-import-hikes');
+  if (importButton) {
+    importButton.hidden = !RouteStore.available();
+    if (!importButton.dataset.wired) {
+      importButton.dataset.wired = 'yes';
+      importButton.addEventListener('click', () => importRepoHikes(importButton));
+    }
+  }
 }
 
 // ─── Export / import ──────────────────────────────────────────────────────────

@@ -86,6 +86,28 @@ Supabase is optional. Copy `config.example.js` to `config.js`; leave the
 Configuration*, add every origin you serve from (e.g. `http://127.0.0.1:5501/**`)
 to the redirect URLs, or the link in the email falls back to the Site URL.
 
+### Outings
+
+A walk is a `route` row, done or planned, joined to the summits it takes in
+through `route_peak` — one outing can cover several peaks, and a peak collects
+outings over the years. Click a peak and its walks appear under the tag
+buttons, with stats, Strava and photo links, notes, and the track drawn on the
+map. Tracks stay until **Clear**, so a planned line can be held against one
+already walked.
+
+**Tracks are polylines, not files.** A 600 KB GPX simplified to 5 m keeps every
+switchback and costs about 1 KB, so the whole history is ~12 KB and lives in
+the rows — no storage bucket, no second request to draw a line. Distance and
+ascent are measured from the full-resolution points *before* simplifying, so
+the numbers never pay for the smaller line.
+
+**Import the repo's own hikes** with *Backup & sharing → Import old hikes*,
+signed in. Each folder under `gpx/` becomes a route, its stats taken from
+`info.json` where present and measured off the track where not, linked to every
+peak within 80 m of the line — which is how one August day comes back as both
+Brunnsteinspitze and Rotwandlspitze. A route remembers its folder, so importing
+twice imports nothing twice.
+
 ### Regenerating the peak snapshot
 
 ```bash
