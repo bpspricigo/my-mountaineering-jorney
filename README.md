@@ -101,6 +101,14 @@ the rows — no storage bucket, no second request to draw a line. Distance and
 ascent are measured from the full-resolution points *before* simplifying, so
 the numbers never pay for the smaller line.
 
+**Add or edit one by hand** with *Add outing* — in the panel, or in a peak's
+popup, where it starts linked to that peak. Only the title is required. Drop a
+GPX in and it measures the walk, fills whatever stats are still blank (a number
+you typed wins, since it came from your watch) and adds every summit the line
+crosses. Other links go in one per line as `label | url`; gear and conditions
+go in notes. A checkbox tags the linked summits with the outing's own status,
+so recording a walk marks its peaks done in one go.
+
 **Import the repo's own hikes** with *Backup & sharing → Import old hikes*,
 signed in. Each folder under `gpx/` becomes a route, its stats taken from
 `info.json` where present and measured off the track where not, linked to every

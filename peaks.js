@@ -471,11 +471,12 @@ function openPicker(feature) {
     </p>
     <p class="peak-picker-meta">${describeIsolation(p.isolation)}</p>
     <div class="peak-picker-options"></div>
-    <div class="peak-routes" id="peak-routes"></div>
+    <div class="peak-routes" id="peak-routes" data-peak-id="${id}"></div>
     <div class="peak-picker-links">
       <a href="https://www.openstreetmap.org/node/${p.id}" target="_blank" rel="noopener">OSM</a>
       ${p.wikipedia ? `<a href="https://${wikipediaHost(p.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}
       <a href="https://www.google.com/maps/dir/?api=1&destination=${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}" target="_blank" rel="noopener">Directions</a>
+      <button type="button" id="peak-add-route">Add outing</button>
     </div>
   `;
 
@@ -508,6 +509,7 @@ function openPicker(feature) {
     .setDOMContent(el)
     .addTo(state.map);
 
+  el.querySelector('#peak-add-route').addEventListener('click', () => RouteForm.open({ peak: feature }));
   renderPeakRoutes(el.querySelector('#peak-routes'), id);
   // After the outings are in, not before: the popup is taller by then, and a
   // measurement taken too early pans by less than it needs to.
@@ -521,16 +523,36 @@ function openPicker(feature) {
 
 /**
  * A popup anchored below its peak runs off the bottom when the peak is low on
- * screen, and a fixed anchor never flips. So move the map instead, which keeps
- * the peak, its popup and the rounding all intact.
+ * screen, off the side when it is near an edge, and under the panel when it is
+ * behind it — and a fixed anchor never flips. So move the map instead, which
+ * keeps the peak, its popup and the whole-pixel rounding all intact.
  */
 function keepPopupOnScreen() {
   const node = document.querySelector('.peak-popup');
   if (!node || !state.map) return;
+
   const popup = node.getBoundingClientRect();
   const canvas = state.map.getCanvas().getBoundingClientRect();
-  const overflow = popup.bottom - (canvas.bottom - 12);
-  if (overflow > 0) state.map.panBy([0, overflow], { duration: 250 });
+  const panel = document.querySelector('.peaks-panel');
+  const panelBox = panel && !document.body.classList.contains('peaks-panel-collapsed')
+    ? panel.getBoundingClientRect()
+    : null;
+
+  // The clear area is the canvas minus the floating panel and a margin.
+  const margin = 12;
+  const clear = {
+    left: Math.max(canvas.left, panelBox ? panelBox.right : canvas.left) + margin,
+    right: canvas.right - margin,
+    bottom: canvas.bottom - margin
+  };
+
+  // Positive values pan the map so the popup comes back into the clear.
+  let x = 0;
+  if (popup.right > clear.right) x = popup.right - clear.right;
+  if (popup.left - x < clear.left) x = popup.left - clear.left;
+  const y = Math.max(0, popup.bottom - clear.bottom);
+
+  if (x || y) state.map.panBy([x, y], { duration: 250 });
 }
 
 /**
@@ -600,6 +622,7 @@ function renderPeakRoutes(el, peakId) {
         ${route.photos_url ? `<a href="${escapeHtml(route.photos_url)}" target="_blank" rel="noopener">Photos</a>` : ''}
         ${(route.links ?? []).map(l => `<a href="${escapeHtml(l.url)}" target="_blank" rel="noopener">${escapeHtml(l.label)}</a>`).join('')}
         ${route.track ? `<button type="button" class="peak-route-zoom">Zoom to track</button>` : ''}
+        <button type="button" class="peak-route-edit">Edit</button>
       </div>
     </details>
   `).join('');
@@ -607,6 +630,12 @@ function renderPeakRoutes(el, peakId) {
   // Expanding an outing makes the popup taller, which can push it off screen.
   el.querySelectorAll('.peak-route').forEach(details => {
     details.addEventListener('toggle', () => requestAnimationFrame(keepPopupOnScreen));
+  });
+
+  el.querySelectorAll('.peak-route-edit').forEach(button => {
+    button.addEventListener('click', () => {
+      RouteForm.open({ route: RouteStore.get(button.closest('.peak-route').dataset.id) });
+    });
   });
 
   el.querySelectorAll('.peak-route-zoom').forEach(button => {
@@ -641,7 +670,9 @@ const trackCollection = () => ({
 });
 
 function drawTrack(route) {
-  if (!route?.track || state.drawn.has(route.id)) return false;
+  if (!route?.track) return false;
+  // An edited route is redrawn rather than skipped, so a replaced track shows.
+  const isNew = !state.drawn.has(route.id);
   state.drawn.set(route.id, {
     type: 'Feature',
     properties: { id: route.id, kind: route.kind, title: route.title },
@@ -649,7 +680,14 @@ function drawTrack(route) {
   });
   state.map?.getSource('tracks')?.setData(trackCollection());
   renderTrackBar();
-  return true;
+  return isNew;
+}
+
+/** Takes one track off the map, for a route that has just been deleted. */
+function undrawTrack(id) {
+  if (!state.drawn.delete(id)) return;
+  state.map?.getSource('tracks')?.setData(trackCollection());
+  renderTrackBar();
 }
 
 function clearTracks() {
@@ -782,6 +820,7 @@ function buildPanel(peaks) {
           overwrites a peak only if the file has a status for it.
         </p>
         <div class="peaks-buttons">
+          <button type="button" id="peaks-add-route" hidden>Add outing</button>
           <button type="button" id="peaks-import-hikes" hidden>Import old hikes</button>
         </div>
         <div class="peaks-buttons">
@@ -1178,7 +1217,16 @@ function renderTaggedList() {
   renderSaveState();
   renderTrackBar();
 
-  // Importing needs an account, so the button appears only with one.
+  // Both need an account, so they appear only with one.
+  const addButton = document.getElementById('peaks-add-route');
+  if (addButton) {
+    addButton.hidden = !RouteStore.available();
+    if (!addButton.dataset.wired) {
+      addButton.dataset.wired = 'yes';
+      addButton.addEventListener('click', () => RouteForm.open());
+    }
+  }
+
   const importButton = document.getElementById('peaks-import-hikes');
   if (importButton) {
     importButton.hidden = !RouteStore.available();

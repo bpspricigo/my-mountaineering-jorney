@@ -870,6 +870,232 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   display: none;
 }
 
+/* ─── Outing form ───────────────────────────────────────────────────────────── */
+.route-dialog {
+  width: min(680px, calc(100vw - 2rem));
+  max-height: min(86vh, 900px);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.3);
+}
+
+.route-dialog::backdrop {
+  background: rgba(20, 24, 20, 0.45);
+}
+
+.route-form {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.route-form-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--header-bg);
+  color: var(--header-text);
+}
+
+.route-form-head h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.route-form-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.route-form-close:hover {
+  opacity: 1;
+}
+
+/* The body scrolls, so the save button never leaves the bottom of the box. */
+.route-form-body {
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.route-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.route-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: none;
+  min-width: 7rem;
+}
+
+.route-field--grow {
+  flex: 1;
+}
+
+.route-field > span,
+.route-field legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.route-field input,
+.route-field select,
+.route-field textarea {
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+
+.route-field textarea {
+  resize: vertical;
+}
+
+.route-field input:focus,
+.route-field select:focus,
+.route-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.route-form-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.route-form-hint.is-error {
+  color: #b3261e;
+}
+
+.route-peaks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.route-peaks-empty {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.route-peak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--chip-bg);
+  border-radius: 20px;
+  padding: 0.22rem 0.3rem 0.22rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.route-peak-chip small {
+  color: var(--text-muted);
+}
+
+.route-peak-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.route-peak-chip button:hover {
+  color: #b3261e;
+}
+
+.route-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.route-check input {
+  accent-color: var(--accent);
+}
+
+.route-form-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.route-form-status {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.route-form-status.is-error {
+  color: #b3261e;
+}
+
+.route-form-foot button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.route-form-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.route-form-save:hover {
+  background: var(--accent-hover);
+}
+
+.route-form-delete {
+  color: #b3261e;
+  border-color: transparent;
+  margin-right: auto;
+}
+
+.route-form-delete:hover {
+  border-color: #b3261e;
+}
+
+@media (max-width: 640px) {
+  .route-form-row {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+}
+
 /* ─── Flash message ─────────────────────────────────────────────────────────── */
 .peaks-flash {
   position: fixed;
