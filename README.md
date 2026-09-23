@@ -108,7 +108,7 @@ a week of planning" are different questions:
 | `alps-3000-*` | the Alpine arc, in three strips | 3000 m | Mont Blanc, Monte Rosa, Bernina, Gran Paradiso |
 | `notable` | the Alpine arc | 1500 m **and prominence ≥ 300 m** | range high points below the 3000 m rule |
 
-That currently yields **11,667 named peaks** from 1261 m to 4807 m (Mont Blanc),
+That currently yields **11,661 named peaks** from 1261 m to 4807 m (Mont Blanc),
 across 7 countries — a 2.7 MB file, including all 82 official UIAA
 four-thousanders. The arc is split into strips because querying it as one box
 used 133 s of a 300 s timeout.
@@ -151,7 +151,12 @@ peak the floors would have excluded, marking it `keptBecauseTagged`. Disable wit
 
 Each peak is tagged with its country by asking Overpass which national boundary
 contains it, so summits on the DE/AT border come back as `AT/DE` and match a
-filter for either. Overpass is a free shared service and its instances are often
+filter for either. A node lying exactly on the boundary line belongs to no
+country's area, so any peak left over is asked about individually with `is_in`,
+which does place it — that is how Plattenspitz and seven others got their
+country. Whatever is still unclaimed is genuinely outside the seven countries,
+the Dinaric Alps being what the `notable` box reaches, and is dropped, unless
+it is already on your list. So the country filter never shows an "Unknown" row. Overpass is a free shared service and its instances are often
 busy; the script falls back across three mirrors and retries before giving up.
 
 The run ends by printing the **highest peak per country**. Check it. The first

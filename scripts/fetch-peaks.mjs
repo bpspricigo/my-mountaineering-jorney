@@ -328,6 +328,64 @@ node(area.country)["natural"="peak"]["ele"]${floor}(${bbox});
 out ids;`;
 }
 
+/** Which boundaries contain this exact point. */
+const isInQuery = (lat, lon) => `[out:json][timeout:60];
+is_in(${lat},${lon})->.here;
+area.here["ISO3166-1"];
+out tags;`;
+
+/**
+ * Cleans up the peaks no country claimed, so the app never has to show an
+ * "Unknown" country.
+ *
+ * `node(area.country)` skips a node lying exactly on the boundary line, and a
+ * handful of border summits do — Plattenspitz sits on the Italian border and
+ * came back stateless, though is_in places it in Italy without hesitating. So
+ * ask again per peak, which is affordable because there are never many.
+ *
+ * Whatever is still unclaimed is genuinely outside the countries covered: the
+ * `notable` box reaches 16.5°E and scoops up the Dinaric Alps. Those get
+ * dropped — except any peak already tagged in peak-status.json, because
+ * silently deleting something from your own list would be worse than an
+ * unlabelled country.
+ */
+async function placeStragglers(peaks, wanted) {
+  const stragglers = [...peaks.values()].filter(p => p.countries.size === 0);
+  if (!stragglers.length) return;
+
+  console.log(`[peaks] ${stragglers.length} peaks matched no country — asking per peak`);
+  const dropped = [];
+
+  for (const peak of stragglers) {
+    let areas;
+    try {
+      await sleep(1000); // be a good citizen on a free, shared endpoint
+      areas = await overpass(isInQuery(peak.lat, peak.lon), `country at ${peak.name ?? peak.id}`);
+    } catch (err) {
+      // A network blip should not silently delete a peak: leave it unclaimed.
+      console.warn(`[peaks] ⚠ could not place ${peak.name}: ${err.message.split('\n')[0]}`);
+      continue;
+    }
+
+    const found = areas.map(a => a.tags?.['ISO3166-1']).filter(Boolean);
+    const covered = found.filter(iso => wanted.includes(iso));
+
+    if (covered.length) {
+      for (const iso of covered) peak.countries.add(iso);
+      console.log(`[peaks]   ${peak.name} → ${covered.join('/')}`);
+    } else if (peak.keptBecauseTagged) {
+      console.log(`[peaks]   ${peak.name} is in ${found.join('/') || 'no country'} — kept, it is on your list`);
+    } else {
+      dropped.push(`${peak.name} ${peak.ele} m (${found.join('/') || 'no country'})`);
+      peaks.delete(peak.id);
+    }
+  }
+
+  if (dropped.length) {
+    console.log(`[peaks] dropped ${dropped.length} outside ${wanted.join('/')}: ${dropped.join(', ')}`);
+  }
+}
+
 /** Overpass turns relation N into area 3600000000 + N. */
 const AREA_ID_OFFSET = 3600000000;
 
@@ -630,8 +688,7 @@ async function main() {
     console.log(`[peaks] ${iso}: tagged ${tagged}`);
   }
 
-  const stateless = [...peaks.values()].filter(p => p.countries.size === 0).length;
-  if (stateless) console.log(`[peaks] ${stateless} peaks matched no country (outside ${opts.countries.join('/')} or exactly on a border)`);
+  await placeStragglers(peaks, opts.countries);
 
   const t0 = Date.now();
   computeIsolation([...peaks.values()]);
