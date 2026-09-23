@@ -196,6 +196,8 @@ function buildMap() {
       }
     });
 
+    RouteDraw.addLayers(map);
+
     // A peak that dominates its surroundings should look like it. `rank` runs
     // from 0 for a minor secondary summit to 1 for something like Großglockner.
     const rank = ['interpolate', ['linear'], PEAK_MIN_ZOOM,
@@ -279,8 +281,25 @@ function buildMap() {
     map.on('zoomend', renderCounts);
     map.on('moveend', renderCounts);
 
+    // A click on the map that did not land on a peak. The layer handlers below
+    // run first and mark the event, so one click never drops two points.
+    map.on('click', e => {
+      if (RouteDraw.isActive() && !e.originalEvent.peakHandled) {
+        RouteDraw.addPoint([e.lngLat.lng, e.lngLat.lat]);
+      }
+    });
+
     for (const layer of ['peaks-dots', 'peaks-tagged']) {
-      map.on('click', layer, e => openPicker(e.features[0]));
+      map.on('click', layer, e => {
+        const feature = e.features[0];
+        if (RouteDraw.isActive()) {
+          e.originalEvent.peakHandled = true;
+          // Snap to the summit itself rather than wherever the click landed.
+          RouteDraw.addPoint(feature.geometry.coordinates, feature.properties);
+          return;
+        }
+        openPicker(feature);
+      });
       map.on('mouseenter', layer, e => {
         map.getCanvas().style.cursor = 'pointer';
         showHover(e.features[0]);
@@ -477,6 +496,7 @@ function openPicker(feature) {
       ${p.wikipedia ? `<a href="https://${wikipediaHost(p.wikipedia)}" target="_blank" rel="noopener">Wikipedia</a>` : ''}
       <a href="https://www.google.com/maps/dir/?api=1&destination=${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}" target="_blank" rel="noopener">Directions</a>
       <button type="button" id="peak-add-route">Add outing</button>
+      <button type="button" id="peak-draw-route">Draw from here</button>
     </div>
   `;
 
@@ -510,6 +530,10 @@ function openPicker(feature) {
     .addTo(state.map);
 
   el.querySelector('#peak-add-route').addEventListener('click', () => RouteForm.open({ peak: feature }));
+  el.querySelector('#peak-draw-route').addEventListener('click', () => {
+    RouteDraw.start();
+    RouteDraw.addPoint(feature.geometry.coordinates, feature.properties);
+  });
   renderPeakRoutes(el.querySelector('#peak-routes'), id);
   // After the outings are in, not before: the popup is taller by then, and a
   // measurement taken too early pans by less than it needs to.
@@ -754,6 +778,10 @@ function buildPanel(peaks) {
     <div id="peaks-counts" class="peaks-counts"></div>
     <dl id="peaks-stats" class="peaks-stats"></dl>
     <div id="peaks-tracks" class="peaks-tracks" hidden></div>
+    <section id="peaks-draw" class="peaks-draw" hidden></section>
+    <div class="peaks-buttons">
+      <button type="button" id="peaks-draw-start">Draw a route</button>
+    </div>
 
     <section class="peaks-filters">
       <h3>Filters</h3>
@@ -837,6 +865,8 @@ function buildPanel(peaks) {
       </p>
     </section>
   `;
+
+  document.getElementById('peaks-draw-start').addEventListener('click', () => RouteDraw.start());
 
   wirePanel();
   renderTaggedList();

@@ -196,7 +196,7 @@ const RouteForm = (() => {
    * `route` edits an existing outing; `peak` is the feature the form was opened
    * from, which seeds the summit list and the title of a new one.
    */
-  function open({ route = null, peak = null } = {}) {
+  function open({ route = null, peak = null, draft = null } = {}) {
     if (!RouteStore.available()) {
       flash('Sign in first — outings live in your account', true);
       return;
@@ -237,6 +237,20 @@ const RouteForm = (() => {
     } else if (peak) {
       form.title.value = peak.properties.name ?? '';
       addPeak(peak.properties);
+    }
+
+    // A route just drawn on the map arrives as a draft: the same shape a
+    // dropped GPX produces, so it fills the form the same way.
+    if (draft) {
+      parsed = draft;
+      form.title.value = draft.title || form.title.value;
+      form.distance.value = (draft.distance_m / 1000).toFixed(1);
+      form.ascent.value = draft.ascent_m;
+      if (draft.moving_seconds) form.moving.value = toClock(draft.moving_seconds);
+      if (draft.difficulty) form.difficulty.value = draft.difficulty;
+      for (const found of peaksAlong(draft.fullPoints)) peaks.set(String(found.peak_id), found);
+      dialog.querySelector('#route-gpx-note').textContent =
+        `Drawn on the map — ${draft.track_points} points kept. Dropping a file replaces it.`;
     }
 
     dialog.querySelector('#route-tag-label').textContent = `Tag these summits as ${form.kind.value}`;
@@ -355,6 +369,7 @@ const RouteForm = (() => {
     }
 
     dialog.close();
+    RouteDraw.stop();
     afterChange(saved);
     flash(`Saved ${saved.title}`);
   }

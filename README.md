@@ -101,6 +101,22 @@ the rows — no storage bucket, no second request to draw a line. Distance and
 ascent are measured from the full-resolution points *before* simplifying, so
 the numbers never pay for the smaller line.
 
+**Draw one on the map** with *Draw a route*, or *Draw from here* in a peak's
+popup. Click to drop points — clicking a peak snaps to its summit — and the
+line follows the trails between them, with distance, ascent, a time estimate,
+the hardest SAC grade on the way and an elevation profile updating as you go.
+*Out & back* retraces the way home. *Save as outing* hands the drawn track to
+the form below, stats and summits already filled in.
+
+Routing is [BRouter](https://brouter.de)'s public instance, the engine
+gpx.studio uses: no key, open CORS, hiking profiles that read `sac_scale`, and
+an elevation on every point, which is what keeps ascent honest without a second
+service. One request per leg, so adding a point never re-routes the rest, and a
+leg with no path between its ends is drawn dashed and measured straight.
+`BROUTER_URL` in `route-draw.js` is the only line tying this to a server —
+point it at `docker run -v …:/segments4 abrensch/brouter` and nothing else
+changes.
+
 **Add or edit one by hand** with *Add outing* — in the panel, or in a peak's
 popup, where it starts linked to that peak. Only the title is required. Drop a
 GPX in and it measures the walk, fills whatever stats are still blank (a number

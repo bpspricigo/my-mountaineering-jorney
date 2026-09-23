@@ -870,6 +870,94 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   display: none;
 }
 
+/* ─── Drawing a route ───────────────────────────────────────────────────────── */
+.peaks-draw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.peaks-draw[hidden] {
+  display: none;
+}
+
+.draw-head {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #1d4ed8;
+}
+
+.draw-head strong {
+  flex: 1;
+}
+
+.draw-head button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+
+.peaks-draw select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.draw-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.draw-profile {
+  width: 100%;
+  height: 46px;
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.draw-profile-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: -0.35rem;
+}
+
+.peaks-draw .peaks-stats {
+  margin-top: 0;
+}
+
+.peaks-draw button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.draw-save {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.draw-save:hover:not(:disabled) {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
 /* ─── Outing form ───────────────────────────────────────────────────────────── */
 .route-dialog {
   width: min(680px, calc(100vw - 2rem));
