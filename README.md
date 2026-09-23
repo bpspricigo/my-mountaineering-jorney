@@ -202,17 +202,3 @@ foothill outranking an 1884 m summit only reads as arbitrary.
 The **Detail** slider in the panel shifts the ladder for untagged peaks if you
 want to see everything in an area regardless.
 
-### Seeding from summits.json
-
-One-off migration that marks everything in `summits/summits.json` as `done`:
-
-```bash
-node scripts/seed-status.mjs           # dry run — prints what it would match
-node scripts/seed-status.mjs --write   # writes data/peak-status.json
-```
-
-Summits are matched to OSM peaks by **position**, not name: OSM spells one of
-them `Brunnsteinspitze` where `summits.json` says `Brunnensteinspitze`, and two
-different peaks in the snapshot are both called `Rotwandlspitze`. The name only
-breaks ties, and any fuzzy match is reported so it can be eyeballed. Entries
-already present are left alone.
