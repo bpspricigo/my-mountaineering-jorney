@@ -509,6 +509,7 @@ function buildPanel(peaks) {
     </header>
 
     <div id="peaks-counts" class="peaks-counts"></div>
+    <dl id="peaks-stats" class="peaks-stats"></dl>
 
     <section class="peaks-filters">
       <h3>Filters</h3>
@@ -683,6 +684,63 @@ function renderCounts() {
 }
 
 /**
+ * What the done list adds up to — the part of the old Summits tab worth
+ * keeping, next to the peaks it is counting.
+ *
+ * Elevation comes from the entry first and the snapshot second, so a peak that
+ * a later snapshot drops still counts.
+ */
+function renderStats() {
+  const el = document.getElementById('peaks-stats');
+  if (!el) return;
+
+  const tagged = taggedEntries();
+  const eleOf = ({ entry, feature }) => entry.ele ?? feature?.properties.ele ?? 0;
+  const done = tagged.filter(t => t.entry.status === 'done');
+
+  if (!done.length) {
+    el.innerHTML = '<p class="peaks-empty">Mark a peak done and your record appears here.</p>';
+    return;
+  }
+
+  const highest = done.reduce((a, b) => (eleOf(b) > eleOf(a) ? b : a));
+  const countries = new Set(done.flatMap(t =>
+    (t.entry.country ?? t.feature?.properties.country ?? '').split('/').filter(c => c && c !== '??')
+  ));
+  const stacked = done.reduce((sum, t) => sum + eleOf(t), 0);
+  const climbed = done.filter(t => t.entry.date).map(t => t.entry.date).sort();
+  const planned = tagged.filter(t => t.entry.status === 'planned');
+  const nextUp = planned.length ? planned.reduce((a, b) => (eleOf(b) > eleOf(a) ? b : a)) : null;
+
+  // No summit count here: the Done counter sits directly above this.
+  const rows = [
+    ['Highest', `${escapeHtml(highest.entry.name ?? '')} · ${eleOf(highest)} m`],
+    // Sorted by name, not by code: AT, CH, DE reads as unsorted once it says
+    // Austria, Switzerland, Germany.
+    ['Countries', [...countries].map(c => COUNTRY_NAMES[c] ?? c).sort().join(', ') || '—'],
+    // Every summit stacked on top of the last — a number with no practical
+    // meaning that is nonetheless the one people want to know.
+    ['Stacked', `${stacked.toLocaleString('en-GB')} m`]
+  ];
+  if (climbed.length) rows.push(['Last climbed', formatStatDate(climbed.at(-1))]);
+  if (nextUp) rows.push(['Biggest plan', `${escapeHtml(nextUp.entry.name ?? '')} · ${eleOf(nextUp)} m`]);
+
+  el.innerHTML = rows.map(([label, value]) => `
+    <div class="peaks-stat">
+      <dt>${label}</dt>
+      <dd>${value}</dd>
+    </div>
+  `).join('');
+}
+
+/** "2025-06-15" → "15 Jun 2025", falling back to the raw string. */
+function formatStatDate(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return escapeHtml(iso);
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+/**
  * Says where tagging a peak actually writes. Signed in, that is the account.
  * Signed out it is localStorage, which nobody else sees until the file is
  * exported and committed, so the least this can do is not pretend it is saved.
@@ -770,6 +828,7 @@ function renderTaggedList() {
   if (!entries.length) {
     el.innerHTML = '<p class="peaks-empty">Nothing tagged yet — click a peak on the map.</p>';
     renderCounts();
+    renderStats();
     renderSaveState();
     return;
   }
@@ -792,6 +851,7 @@ function renderTaggedList() {
   });
 
   renderCounts();
+  renderStats();
   renderSaveState();
 }
 

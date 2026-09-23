@@ -6,8 +6,7 @@ A personal web app to track and visualize hikes and mountaineering adventures. B
 
 - **Journal** — completed hikes with route maps, stats, and descriptions
 - **Planner** — upcoming routes on the radar
-- **Peaks** — every peak in the region on one map, tagged dream / planned / attempted / done
-- **Summits** — an overview map of all peaks reached
+- **Peaks** — every peak in the region on one map, tagged dream / planned / attempted / done, with what your done list adds up to
 
 ## Running locally
 

@@ -129,12 +129,6 @@ main {
   height: 400px;
 }
 
-.map--summits {
-  height: 560px;
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
 /* ─── Card body ─────────────────────────────────────────────────────────────── */
 .card-body {
   padding: 1.25rem 1.5rem 1.5rem;
@@ -258,78 +252,6 @@ main {
   justify-content: center;
   border-radius: 50%;
   border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-
-/* ─── Summit stats dashboard ────────────────────────────────────────────────── */
-.stats-dashboard {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.stat-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.stat-card-value {
-  font-size: 1.7rem;
-  font-weight: 700;
-  color: var(--accent);
-  line-height: 1;
-}
-
-.stat-card-label {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* ─── Peak markers ───────────────────────────────────────────────────────────── */
-.peak-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  cursor: pointer;
-}
-
-.peak-marker-label {
-  background: rgba(26, 43, 26, 0.88);
-  color: #fff;
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 11px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.peak-marker-label strong {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.peak-marker-label span {
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-.peak-marker-dot {
-  width: 10px;
-  height: 10px;
-  background: var(--accent);
-  border: 2px solid #fff;
-  border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
@@ -485,6 +407,40 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   letter-spacing: 0.8px;
   color: var(--text-muted);
   margin-bottom: 0.75rem;
+}
+
+/* ─── Your record ───────────────────────────────────────────────────────────── */
+.peaks-stats {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.peaks-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.15rem;
+  border-bottom: 1px dotted var(--border);
+}
+
+.peaks-stat:last-child {
+  border-bottom: none;
+}
+
+.peaks-stat dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.peaks-stat dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
 }
 
 /* Inside a translucent overlay these are sections, not cards — a white box on
