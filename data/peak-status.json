@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "updated": "2026-09-18",
+  "peaks": {
+    "26863041": {
+      "status": "done",
+      "name": "Großglockner",
+      "ele": 3798,
+      "country": "AT",
+      "updated": "2026-09-18"
+    },
+    "26863047": {
+      "status": "done",
+      "name": "Große Arnspitze",
+      "ele": 2196,
+      "country": null,
+      "updated": "2026-09-10"
+    },
+    "26863664": {
+      "status": "dream",
+      "name": "Matterhorn",
+      "ele": 4478,
+      "country": "CH",
+      "updated": "2026-09-10"
+    },
+    "26863830": {
+      "status": "planned",
+      "name": "Monte Civetta",
+      "ele": 3220,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "26863925": {
+      "status": "planned",
+      "name": "Monte Pelmo",
+      "ele": 3172,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "26864153": {
+      "status": "planned",
+      "name": "Ortler - Ortles",
+      "ele": 3905,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "26864284": {
+      "status": "planned",
+      "name": "Piz Bernina",
+      "ele": 4049,
+      "country": "CH",
+      "updated": "2026-09-18"
+    },
+    "26864487": {
+      "status": "done",
+      "date": "2025-06-15",
+      "name": "Rotwand",
+      "ele": 1884,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "26864932": {
+      "status": "planned",
+      "name": "Tofana di Mezzo",
+      "ele": 3244,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "26865133": {
+      "status": "planned",
+      "name": "Weissmies",
+      "ele": 4011,
+      "country": "CH",
+      "updated": "2026-09-10"
+    },
+    "26865139": {
+      "status": "planned",
+      "name": "Wildspitze",
+      "ele": 3768,
+      "country": "AT",
+      "updated": "2026-09-10"
+    },
+    "27384190": {
+      "status": "done",
+      "name": "Zugspitze",
+      "ele": 2962,
+      "country": null,
+      "updated": "2026-09-10"
+    },
+    "31664302": {
+      "status": "dream",
+      "name": "Eiger",
+      "ele": 3970,
+      "country": "CH",
+      "updated": "2026-09-10"
+    },
+    "91313899": {
+      "status": "done",
+      "name": "Kleinglockner",
+      "ele": 3770,
+      "country": "AT",
+      "updated": "2026-09-18"
+    },
+    "256041740": {
+      "status": "planned",
+      "name": "Großvenediger",
+      "ele": 3657,
+      "country": "AT",
+      "updated": "2026-09-10"
+    },
+    "256042874": {
+      "status": "planned",
+      "name": "Wörner",
+      "ele": 2476,
+      "country": "AT",
+      "updated": "2026-09-10"
+    },
+    "259486622": {
+      "status": "done",
+      "name": "Alpspitze",
+      "ele": 2628,
+      "country": null,
+      "updated": "2026-09-10"
+    },
+    "266993268": {
+      "status": "done",
+      "date": "2025-06-15",
+      "name": "Taubenstein",
+      "ele": 1693,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "281399025": {
+      "status": "dream",
+      "name": "Mont Blanc / Monte Bianco",
+      "ele": 4807,
+      "country": "FR/IT",
+      "updated": "2026-09-10"
+    },
+    "304168699": {
+      "status": "done",
+      "date": "2025-07-12",
+      "name": "Delpsjoch",
+      "ele": 1945,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "316985775": {
+      "status": "planned",
+      "name": "Allalinhorn",
+      "ele": 4027,
+      "country": "CH",
+      "updated": "2026-09-10"
+    },
+    "333933211": {
+      "status": "planned",
+      "name": "Birkkarspitze",
+      "ele": 2749,
+      "country": "AT",
+      "updated": "2026-09-10"
+    },
+    "364134323": {
+      "status": "planned",
+      "name": "Watzmann-Mittelspitze",
+      "ele": 2713,
+      "country": "DE",
+      "updated": "2026-09-10"
+    },
+    "380989890": {
+      "status": "done",
+      "date": "2025-08-10",
+      "name": "Brunnsteinspitze",
+      "ele": 2180,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "414760065": {
+      "status": "dream",
+      "name": "Dufourspitze",
+      "ele": 4634,
+      "country": "CH",
+      "updated": "2026-09-10"
+    },
+    "534251275": {
+      "status": "planned",
+      "name": "Punta Penia",
+      "ele": 3343,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "1396345672": {
+      "status": "done",
+      "date": "2025-06-29",
+      "name": "Seekarspitze",
+      "ele": 2053,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "1621410767": {
+      "status": "done",
+      "date": "2025-07-12",
+      "name": "Schafreuter",
+      "ele": 2102,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "1999392342": {
+      "status": "done",
+      "date": "2025-08-10",
+      "name": "Rotwandlspitze",
+      "ele": 2192,
+      "country": "AT",
+      "source": "summits.json"
+    },
+    "2061799676": {
+      "status": "planned",
+      "name": "Hochwanner",
+      "ele": 2744,
+      "country": "AT/DE",
+      "updated": "2026-09-10"
+    },
+    "2641912271": {
+      "status": "planned",
+      "name": "Antelao",
+      "ele": 3264,
+      "country": "IT",
+      "updated": "2026-09-10"
+    },
+    "5594875706": {
+      "status": "done",
+      "date": "2025-05-31",
+      "name": "Neureuth",
+      "ele": 1261,
+      "country": "DE",
+      "source": "summits.json"
+    },
+    "4971266221": {
+      "status": "planned",
+      "name": "Montscheinspitze",
+      "ele": 2106,
+      "country": "AT",
+      "updated": "2026-09-10"
+    },
+    "11050889060": {
+      "status": "dream",
+      "name": "Cima Grande - Große Zinne",
+      "ele": 2999,
+      "country": "IT",
+      "updated": "2026-09-10"
+    }
+  }
+}

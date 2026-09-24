@@ -129,12 +129,6 @@ main {
   height: 400px;
 }
 
-.map--summits {
-  height: 560px;
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
 /* ─── Card body ─────────────────────────────────────────────────────────────── */
 .card-body {
   padding: 1.25rem 1.5rem 1.5rem;
@@ -261,78 +255,6 @@ main {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
-/* ─── Summit stats dashboard ────────────────────────────────────────────────── */
-.stats-dashboard {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.stat-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 1.25rem 1.5rem;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.stat-card-value {
-  font-size: 1.7rem;
-  font-weight: 700;
-  color: var(--accent);
-  line-height: 1;
-}
-
-.stat-card-label {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* ─── Peak markers ───────────────────────────────────────────────────────────── */
-.peak-marker {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  cursor: pointer;
-}
-
-.peak-marker-label {
-  background: rgba(26, 43, 26, 0.88);
-  color: #fff;
-  padding: 3px 8px;
-  border-radius: 5px;
-  font-size: 11px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  line-height: 1.4;
-  white-space: nowrap;
-}
-
-.peak-marker-label strong {
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.peak-marker-label span {
-  font-size: 10px;
-  opacity: 0.75;
-}
-
-.peak-marker-dot {
-  width: 10px;
-  height: 10px;
-  background: var(--accent);
-  border: 2px solid #fff;
-  border-radius: 50%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-
 /* ─── Popup ──────────────────────────────────────────────────────────────────── */
 .popup-content {
   display: flex;
@@ -344,4 +266,1097 @@ main {
 
 .popup-content strong {
   font-size: 14px;
+}
+
+/* ─── Peak planner ──────────────────────────────────────────────────────────── */
+/*
+ * The planner is a map with controls floating over it, not a column of content.
+ * The whole window below the header belongs to the map; the body stops
+ * scrolling so that dragging the map never drags the page with it.
+ */
+body.tab-fullscreen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;      /* mobile browsers, where 100vh sits under the chrome */
+  overflow: hidden;
+}
+
+body.tab-fullscreen main {
+  flex: 1;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;       /* lets the flex child actually shrink */
+  display: flex;
+  flex-direction: column;
+}
+
+/* Flex rather than height:100%, which depends on the parent having resolved a
+   definite height and collapses to nothing when it has not. */
+body.tab-fullscreen #tab-peaks {
+  flex: 1;
+  min-height: 0;
+}
+
+.peaks-stage {
+  position: relative;
+  height: 100%;
+  isolation: isolate;
+}
+
+.map--peaks {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+}
+
+.peaks-error {
+  padding: 2rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* ─── Floating panel ────────────────────────────────────────────────────────── */
+.peaks-panel {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 5;
+  width: 310px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;   /* scrolling the panel must not pan the map */
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+
+body.peaks-panel-collapsed .peaks-panel {
+  transform: translateX(calc(-100% - 1.5rem));
+  opacity: 0;
+  pointer-events: none;
+}
+
+.peaks-panel-head h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.peaks-panel-head p {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ─── Panel toggle ──────────────────────────────────────────────────────────── */
+.peaks-panel-toggle {
+  position: absolute;
+  top: 1rem;
+  left: calc(310px + 1.75rem);
+  z-index: 6;
+  width: 30px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: left 0.25s ease, background 0.2s ease;
+}
+
+.peaks-panel-toggle:hover {
+  background: #fff;
+  color: var(--accent);
+}
+
+body.peaks-panel-collapsed .peaks-panel-toggle {
+  left: 1rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.peaks-panel h3 {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* ─── Your record ───────────────────────────────────────────────────────────── */
+.peaks-stats {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.peaks-stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.15rem;
+  border-bottom: 1px dotted var(--border);
+}
+
+.peaks-stat:last-child {
+  border-bottom: none;
+}
+
+.peaks-stat dt {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.peaks-stat dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+/* Inside a translucent overlay these are sections, not cards — a white box on
+   a white box reads as clutter. Separate them with a rule instead. */
+.peaks-filters,
+.peaks-actions {
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+
+/* ─── Counters ──────────────────────────────────────────────────────────────── */
+.peaks-counts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+
+.peaks-count {
+  background: var(--chip-bg);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.peaks-count--total {
+  grid-column: 1 / -1;
+  background: var(--header-bg);
+}
+
+.peaks-count--total .peaks-count-value,
+.peaks-count--total .peaks-count-label {
+  color: var(--header-text);
+}
+
+.peaks-count-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.peaks-count-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* ─── Filter fields ─────────────────────────────────────────────────────────── */
+.peaks-field {
+  display: block;
+  border: none;
+  margin-bottom: 1rem;
+}
+
+.peaks-field > span,
+.peaks-field legend {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+.peaks-field output {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.peaks-field input[type="search"],
+.peaks-field input[type="email"] {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.875rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.peaks-field input[type="search"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.peaks-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.peaks-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.peaks-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.peaks-check input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.peaks-check-count {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.peaks-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px var(--border);
+  flex-shrink: 0;
+}
+
+/* ─── Tagged list ───────────────────────────────────────────────────────────── */
+.peaks-tagged {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.peaks-tagged-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.45rem;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  font-family: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.peaks-tagged-row:hover {
+  background: var(--chip-bg);
+}
+
+.peaks-tagged-row:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.peaks-tagged-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peaks-tagged-ele {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.peaks-empty {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 0.3rem 0 0.6rem;
+}
+
+/* ─── Buttons ───────────────────────────────────────────────────────────────── */
+.peaks-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.peaks-buttons button,
+.peaks-import,
+.peaks-account button {
+  flex: 1;
+  text-align: center;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.peaks-buttons button:hover,
+.peaks-import:hover,
+.peaks-account button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.peaks-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.8rem;
+}
+
+.peaks-note code {
+  background: var(--chip-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-size: 0.95em;
+}
+
+.peaks-source {
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+/* ─── Status picker popup ───────────────────────────────────────────────────── */
+.peak-picker h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.peak-picker-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 0.7rem;
+}
+
+.peak-picker-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+  margin-bottom: 0.7rem;
+}
+
+.peak-option {
+  --option-color: var(--accent);
+  padding: 0.4rem 0.5rem;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.peak-option:hover {
+  border-color: var(--option-color);
+  color: var(--option-color);
+}
+
+.peak-option.is-current {
+  background: var(--option-color);
+  border-color: var(--option-color);
+  color: #fff;
+}
+
+.peak-picker-links {
+  display: flex;
+  gap: 0.7rem;
+  font-size: 0.78rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+}
+
+.peak-picker-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.peak-picker-links a:hover {
+  text-decoration: underline;
+}
+
+/* Buttons in the popup's link row read as links, not as another tag option. */
+.peak-picker-links button {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.peak-picker-links button:hover {
+  text-decoration: underline;
+}
+
+/* ─── Outings on a peak ─────────────────────────────────────────────────────── */
+.peak-routes {
+  margin-top: 0.7rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.peak-routes-empty {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.peak-route summary {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 0.15rem 0;
+}
+
+.peak-route summary::-webkit-details-marker {
+  display: none;
+}
+
+.peak-route-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.peak-route-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peak-route-date {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.peak-route-stats {
+  font-size: 0.75rem;
+  color: var(--text);
+  padding: 0.15rem 0 0.3rem 1.05rem;
+}
+
+.peak-route-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  padding: 0 0 0.35rem 1.05rem;
+}
+
+.peak-route .peak-picker-links {
+  margin-left: 1.05rem;
+  border-top: none;
+  padding-top: 0.1rem;
+}
+
+/* ─── Tracks on the map ─────────────────────────────────────────────────────── */
+/* display: flex beats the hidden attribute, so hiding has to be spelled out. */
+.peaks-tracks[hidden],
+.peaks-account[hidden] {
+  display: none;
+}
+
+.peaks-tracks {
+  margin-top: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  background: var(--chip-bg);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+}
+
+.peaks-tracks button {
+  margin-left: auto;
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.peak-popup .maplibregl-popup-content {
+  border-radius: 10px;
+  padding: 0.85rem 1rem 0.9rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  /* An even, fixed width, because MapLibre places the popup with
+     translate(-50%, …): half of an odd, content-derived width lands the box on
+     a half pixel and the browser blurs every glyph in it. Expanding an outing
+     changed that width, which is why it went soft only once opened. */
+  width: 320px;
+  box-sizing: border-box;
+}
+
+.peak-hover .maplibregl-popup-content {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  border-radius: 6px;
+}
+
+.peak-hover .maplibregl-popup-tip {
+  display: none;
+}
+
+/* ─── Drawing a route ───────────────────────────────────────────────────────── */
+.peaks-draw {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+}
+
+.peaks-draw[hidden] {
+  display: none;
+}
+
+.draw-head {
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #1d4ed8;
+}
+
+.draw-head strong {
+  flex: 1;
+}
+
+.draw-head button {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+}
+
+.peaks-draw select {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.draw-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.draw-profile {
+  width: 100%;
+  height: 46px;
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.draw-profile-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: -0.35rem;
+}
+
+.peaks-draw .peaks-stats {
+  margin-top: 0;
+}
+
+.peaks-draw button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.draw-save {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.draw-save:hover:not(:disabled) {
+  background: #1e40af;
+  border-color: #1e40af;
+  color: #fff;
+}
+
+/* ─── Outing form ───────────────────────────────────────────────────────────── */
+.route-dialog {
+  width: min(680px, calc(100vw - 2rem));
+  max-height: min(86vh, 900px);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.3);
+}
+
+.route-dialog::backdrop {
+  background: rgba(20, 24, 20, 0.45);
+}
+
+.route-form {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+}
+
+.route-form-head {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--header-bg);
+  color: var(--header-text);
+}
+
+.route-form-head h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.route-form-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.route-form-close:hover {
+  opacity: 1;
+}
+
+/* The body scrolls, so the save button never leaves the bottom of the box. */
+.route-form-body {
+  padding: 1.1rem 1.25rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.route-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.route-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: none;
+  min-width: 7rem;
+}
+
+.route-field--grow {
+  flex: 1;
+}
+
+.route-field > span,
+.route-field legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.route-field input,
+.route-field select,
+.route-field textarea {
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: var(--text);
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+
+.route-field textarea {
+  resize: vertical;
+}
+
+.route-field input:focus,
+.route-field select:focus,
+.route-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.route-form-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.route-form-hint.is-error {
+  color: #b3261e;
+}
+
+.route-peaks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+
+.route-peaks-empty {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.route-peak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--chip-bg);
+  border-radius: 20px;
+  padding: 0.22rem 0.3rem 0.22rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.route-peak-chip small {
+  color: var(--text-muted);
+}
+
+.route-peak-chip button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.25rem;
+}
+
+.route-peak-chip button:hover {
+  color: #b3261e;
+}
+
+.route-check {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+}
+
+.route-check input {
+  accent-color: var(--accent);
+}
+
+.route-form-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.route-form-status {
+  flex: 1;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.route-form-status.is-error {
+  color: #b3261e;
+}
+
+.route-form-foot button {
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.route-form-save {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.route-form-save:hover {
+  background: var(--accent-hover);
+}
+
+.route-form-delete {
+  color: #b3261e;
+  border-color: transparent;
+  margin-right: auto;
+}
+
+.route-form-delete:hover {
+  border-color: #b3261e;
+}
+
+@media (max-width: 640px) {
+  .route-form-row {
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+}
+
+/* ─── Flash message ─────────────────────────────────────────────────────────── */
+.peaks-flash {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translate(-50%, 1rem);
+  background: var(--header-bg);
+  color: var(--header-text);
+  padding: 0.6rem 1.1rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 200;
+}
+
+.peaks-flash.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.peaks-flash.is-error {
+  background: #a33;
+}
+
+/* ─── Narrow screens ────────────────────────────────────────────────────────── */
+@media (max-width: 720px) {
+  /* A 310px panel on a phone is the whole screen, so it becomes a sheet over
+     the bottom half of the map and the map keeps the top half. */
+  .peaks-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-height: 55%;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  body.peaks-panel-collapsed .peaks-panel {
+    transform: translateY(100%);
+  }
+
+  .peaks-panel-toggle {
+    top: auto;
+    bottom: calc(55% + 0.75rem);
+    left: auto;
+    right: 1rem;
+    transition: bottom 0.25s ease;
+  }
+
+  body.peaks-panel-collapsed .peaks-panel-toggle {
+    left: auto;
+    right: 1rem;
+    bottom: 1rem;
+  }
+
+  body.peaks-panel-collapsed .peaks-panel-toggle span[aria-hidden] {
+    transform: rotate(90deg);
+  }
+
+  .peaks-panel-toggle span[aria-hidden] {
+    display: block;
+    transform: rotate(-90deg);
+  }
+}
+
+.peaks-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-top: 0.3rem;
+}
+
+/* ─── Backup & sharing ──────────────────────────────────────────────────────── */
+.peaks-advanced {
+  margin-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.7rem;
+}
+
+.peaks-advanced summary {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.peaks-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The caret is drawn rather than inherited, so it can turn when open. */
+.peaks-advanced summary::before {
+  content: '›';
+  display: inline-block;
+  margin-right: 0.35rem;
+  transition: transform 0.15s ease;
+}
+
+.peaks-advanced[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.peaks-advanced summary:hover {
+  color: var(--accent);
+}
+
+.peaks-advanced .peaks-note {
+  margin-top: 0.5rem;
+}
+
+.peaks-advanced .peaks-buttons {
+  margin-top: 0.6rem;
+}
+
+/* ─── Account ─────────────────────────────────────────────────────────────── */
+.peaks-account {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.peaks-account-who {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.peaks-account-who strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.peaks-sign-in {
+  flex: 1;
+}
+
+.peaks-sign-in .peaks-field {
+  margin-bottom: 0.5rem;
+}
+
+.peaks-sign-in button {
+  width: 100%;
+}
+
+.peaks-account button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.peaks-account .peaks-note {
+  margin-top: 0;
+}
+
+/* ─── Save state ────────────────────────────────────────────────────────────── */
+.peaks-note.is-unsaved {
+  color: var(--text);
+  background: #fff4dd;
+  border-left: 3px solid #f0a500;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0 6px 6px 0;
+}
+
+.peaks-note.is-unsaved strong {
+  display: block;
+  margin-bottom: 2px;
 }

@@ -15,7 +15,7 @@
       <nav>
         <button class="tab-btn active" data-tab="journal">Journal</button>
         <button class="tab-btn" data-tab="planner">Planner</button>
-        <button class="tab-btn" data-tab="summits">Summits</button>
+        <button class="tab-btn" data-tab="peaks">Peaks</button>
       </nav>
     </div>
   </header>
@@ -33,15 +33,32 @@
       <div id="planner-list"></div>
     </div>
 
-    <div id="tab-summits" class="tab-content" hidden>
-      <div id="summits-stats"></div>
-      <div id="summits-map-container"></div>
+    <div id="tab-peaks" class="tab-content" hidden>
+      <!-- The map is the page here; everything else floats over it. -->
+      <div class="peaks-stage">
+        <div id="peaks-map" class="map map--peaks"></div>
+
+        <button type="button" id="peaks-panel-toggle" class="peaks-panel-toggle"
+                aria-controls="peaks-panel" aria-expanded="true" title="Hide the panel">
+          <span aria-hidden="true">‹</span>
+          <span class="visually-hidden">Toggle the planner panel</span>
+        </button>
+
+        <aside id="peaks-panel" class="peaks-panel" aria-label="Peak planner controls"></aside>
+      </div>
     </div>
+
   </main>
 
   <script src="config.js"></script>
   <script src="https://unpkg.com/maplibre-gl@3.2.1/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@tmcw/togeojson"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="store.js"></script>
+  <script src="routes.js"></script>
+  <script src="peaks.js"></script>
+  <script src="route-form.js"></script>
+  <script src="route-draw.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

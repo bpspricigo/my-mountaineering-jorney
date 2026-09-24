@@ -6,7 +6,6 @@ const apiKey = CONFIG?.MAPTILER_API_KEY;
 console.log('[app] apiKey:', apiKey ? `${apiKey.slice(0, 6)}…` : 'MISSING');
 
 const STYLE_HIKE   = `https://api.maptiler.com/maps/01977a50-3b45-714b-8988-53457dbba54f/style.json?key=${apiKey}`;
-const STYLE_SUMMIT = `https://api.maptiler.com/maps/01977a3c-1420-7d86-8992-edcec1cbca8d/style.json?key=${apiKey}`;
 
 const FLAG_URLS = {
   DE: 'https://flagcdn.com/w40/de.png',
@@ -30,25 +29,34 @@ function activateTab(name) {
   document.querySelectorAll('.tab-content').forEach(el => {
     el.hidden = el.id !== `tab-${name}`;
   });
+  // The peak planner takes the whole window; the reading tabs stay a column.
+  document.body.classList.toggle('tab-fullscreen', name === 'peaks');
   if (!initializedTabs.has(name)) {
     initializedTabs.add(name);
     initTab(name);
+  } else if (name === 'peaks') {
+    // The container had no size while the tab was hidden, so MapLibre needs
+    // telling that it has one again — otherwise the map comes back stretched.
+    resizePeaksMap();   // peaks.js
   }
 }
 
 async function initTab(name) {
   if (name === 'journal') await initJournal();
   else if (name === 'planner') await initPlanner();
-  else if (name === 'summits') await initSummits();
+  else if (name === 'peaks') await initPeaks();   // peaks.js
 }
 
 // ─── Hike index ───────────────────────────────────────────────────────────────
 
 let hikeIndex = null;
 
-// Kick off the default tab on load
-console.log('[app] DOM ready, activating journal tab');
-activateTab('journal');
+// Kick off the default tab on load, or the one a link asked for — the sign-in
+// email sends people back to ?tab=peaks.
+const requestedTab = new URLSearchParams(location.search).get('tab');
+const firstTab = document.getElementById(`tab-${requestedTab}`) ? requestedTab : 'journal';
+console.log(`[app] DOM ready, activating ${firstTab} tab`);
+activateTab(firstTab);
 async function getHikeIndex() {
   if (!hikeIndex) {
     console.log('[app] fetching data/hikes.json…');
@@ -82,89 +90,6 @@ async function initPlanner() {
   const entries = await loadInfos(planned);
   const list = document.getElementById('planner-list');
   entries.forEach(({ folder, data }) => renderCard(list, folder, data, true));
-}
-
-// ─── Summits ─────────────────────────────────────────────────────────────────
-
-async function initSummits() {
-  const peaks = await fetch('summits/summits.json').then(r => r.json());
-  renderSummitStats(peaks);
-  renderSummitMap(peaks);
-}
-
-function renderSummitStats(peaks) {
-  const highest = peaks.reduce((max, p) => {
-    const m = parseInt(p.elevation);
-    return m > max.m ? { m, name: p.name } : max;
-  }, { m: 0, name: '' });
-
-  const countryNames = {
-    DE: 'Germany', '🇩🇪': 'Germany',
-    AT: 'Austria',  '🇦🇹': 'Austria',
-    IT: 'Italy',    '🇮🇹': 'Italy',
-    CH: 'Switzerland', '🇨🇭': 'Switzerland'
-  };
-  const countries = [...new Set(peaks.map(p => countryNames[p.flag] || p.flag))];
-
-  document.getElementById('summits-stats').innerHTML = `
-    <div class="stats-dashboard">
-      <div class="stat-card">
-        <span class="stat-card-value">${peaks.length}</span>
-        <span class="stat-card-label">Summits climbed</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card-value">${highest.m} m</span>
-        <span class="stat-card-label">Highest · ${highest.name}</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-card-value">${countries.length}</span>
-        <span class="stat-card-label">Countries · ${countries.join(', ')}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderSummitMap(peaks) {
-  const mapDiv = document.createElement('div');
-  mapDiv.id = 'map-summits';
-  mapDiv.className = 'map map--summits';
-  document.getElementById('summits-map-container').appendChild(mapDiv);
-
-  const map = new maplibregl.Map({
-    container: 'map-summits',
-    style: STYLE_SUMMIT,
-    center: [11.5, 47.5],
-    zoom: 9
-  });
-
-  map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-  peaks.forEach(peak => {
-    const el = document.createElement('div');
-    el.className = 'peak-marker';
-    el.innerHTML = `
-      <div class="peak-marker-label">
-        <strong>${peak.name}</strong>
-        <span>${peak.elevation}</span>
-      </div>
-      <div class="peak-marker-dot"></div>
-    `;
-
-    new maplibregl.Marker({ element: el, anchor: 'bottom' })
-      .setLngLat([peak.lon, peak.lat])
-      .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML(`
-        <div class="popup-content">
-          <strong>${peak.name}</strong>
-          <span>${peak.elevation}</span>
-          <span>${formatDate(peak.date)}</span>
-        </div>
-      `))
-      .addTo(map);
-  });
-
-  const bounds = new maplibregl.LngLatBounds();
-  peaks.forEach(p => bounds.extend([p.lon, p.lat]));
-  map.fitBounds(bounds, { padding: 60 });
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
