@@ -7,7 +7,32 @@
  * whether they live in this browser or in a database behind one interface.
  */
 
-const PEAKS_URL = 'data/peaks.geojson';
+/**
+ * Peaks arrive from up to three places, each covering what the others cannot:
+ *
+ *   PEAKS_URL          a small worldwide core, in the repo. Loads before
+ *                      anything else and is the whole map when offline.
+ *   CONFIG.PEAKS_TILESET_ID
+ *                      every peak we know, hosted by MapTiler as a vector
+ *                      tileset built by scripts/build-world-peaks.mjs. Carries
+ *                      our own fields — country, isolation, OSM id — which the
+ *                      basemap's peaks do not.
+ *   the basemap        MapTiler's own mountain_peak layer, behind the
+ *                      "More peaks, worldwide" switch, for whatever neither of
+ *                      the above has heard of.
+ *
+ * The first is a file the browser parses; the other two are tile sources the
+ * map fetches as you pan.
+ */
+const PEAKS_URL = 'data/peaks-core.geojson';
+
+/**
+ * The Alps in detail, loaded only while no tileset is configured. The core
+ * file covers the world at a few thousand peaks, which is the right density
+ * for a planet and far too coarse for the range you actually walk in. Once the
+ * tileset is up it carries both, and this stops being fetched.
+ */
+const FALLBACK_PEAKS_URL = 'data/peaks.geojson';
 
 const PEAK_STYLE = `https://api.maptiler.com/maps/01977a3c-1420-7d86-8992-edcec1cbca8d/style.json?key=${CONFIG?.MAPTILER_API_KEY}`;
 
@@ -123,6 +148,9 @@ const PEAK_MIN_ZOOM = ['coalesce', ['get', 'minZoom'], 0];
  */
 const TILE_PEAKS = { source: 'maptiler_planet', sourceLayer: 'mountain_peak', key: 'mmj.tile-peaks' };
 
+/** MapTiler names the layer in an uploaded tileset after the file it came from. */
+const WORLD_PEAKS_LAYER = 'world-peaks';
+
 /**
  * An id for a peak that has none of its own.
  *
@@ -142,6 +170,8 @@ function idFromPosition(lon, lat) {
 async function initPeaks() {
   const root = document.getElementById('tab-peaks');
 
+  const hasTileset = typeof CONFIG !== 'undefined' && Boolean(CONFIG.PEAKS_TILESET_ID);
+
   let peaks;
   try {
     peaks = await fetch(PEAKS_URL).then(r => {
@@ -151,8 +181,22 @@ async function initPeaks() {
   } catch (err) {
     console.error('[peaks]', err);
     root.querySelector('#peaks-map').innerHTML =
-      `<p class="peaks-error">Could not load ${PEAKS_URL}. Run <code>node scripts/fetch-peaks.mjs</code> to generate it.</p>`;
+      `<p class="peaks-error">Could not load ${PEAKS_URL}. Run <code>node scripts/build-world-peaks.mjs</code> to generate it.</p>`;
     return;
+  }
+
+  if (!hasTileset) {
+    try {
+      const detailed = await fetch(FALLBACK_PEAKS_URL).then(r => (r.ok ? r.json() : null));
+      if (detailed) {
+        const known = new Set(peaks.features.map(f => f.properties.id));
+        const extra = detailed.features.filter(f => !known.has(f.properties.id));
+        peaks.features.push(...extra);
+        console.log(`[peaks] no tileset configured — ${extra.length} more from ${FALLBACK_PEAKS_URL}`);
+      }
+    } catch {
+      // Fine: the core file alone is a working map, just a coarse one.
+    }
   }
 
   state.statuses = await PeakStore.open();
@@ -297,6 +341,7 @@ function buildMap() {
       }
     });
 
+    addWorldPeakLayers(map);
     addTilePeakLayers(map);
     RouteDraw.addLayers(map);
 
@@ -391,6 +436,21 @@ function buildMap() {
       }
     });
 
+    map.on('click', 'world-peaks-dots', event => {
+      const [lon, lat] = event.features[0].geometry.coordinates;
+      const properties = event.features[0].properties;
+      event.originalEvent.peakHandled = true;
+
+      if (RouteDraw.isActive()) {
+        RouteDraw.addPoint([lon, lat], { name: properties.name, ele: properties.ele });
+        return;
+      }
+      openPicker(worldFeature(lon, lat, properties));
+    });
+
+    map.on('mouseenter', 'world-peaks-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'world-peaks-dots', () => { map.getCanvas().style.cursor = RouteDraw.isActive() ? 'crosshair' : ''; });
+
     map.on('click', 'tile-peaks-dots', event => {
       const [lon, lat] = event.features[0].geometry.coordinates;
       const properties = event.features[0].properties;
@@ -400,7 +460,8 @@ function buildMap() {
         RouteDraw.addPoint([lon, lat], { name: properties.name, ele: properties.ele });
         return;
       }
-      openPicker(tileFeature(lon, lat, properties));
+      const feature = tileFeature(lon, lat, properties);
+      if (feature) openPicker(feature);
     });
 
     map.on('mouseenter', 'tile-peaks-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
@@ -470,6 +531,91 @@ function addStatusIcons(map) {
     }
     map.addImage(`status-${key}`, ctx.getImageData(0, 0, size, size), { pixelRatio: 2 });
   }
+}
+
+/**
+ * Our own worldwide tileset, when one is configured. Same styling rules as the
+ * peaks from the core file, because they are the same data — the file holds the
+ * few thousand that have to be there before a tile arrives.
+ */
+function addWorldPeakLayers(map) {
+  const tileset = typeof CONFIG !== 'undefined' ? CONFIG.PEAKS_TILESET_ID : null;
+  if (!tileset) return;
+
+  const key = CONFIG.MAPTILER_API_KEY;
+  map.addSource('world-peaks', {
+    type: 'vector',
+    url: `https://api.maptiler.com/tiles/${tileset}/tiles.json?key=${key}`
+  });
+
+  map.addLayer({
+    id: 'world-peaks-dots',
+    type: 'circle',
+    source: 'world-peaks',
+    'source-layer': WORLD_PEAKS_LAYER,
+    paint: {
+      'circle-color': STATUSES.none.color,
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2, 14, 4.5],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 1,
+      'circle-opacity': 0.85
+    }
+  });
+
+  map.addLayer({
+    id: 'world-peaks-labels',
+    type: 'symbol',
+    source: 'world-peaks',
+    'source-layer': WORLD_PEAKS_LAYER,
+    layout: {
+      'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
+      'text-font': ['Noto Sans Regular'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 9, 9.5, 14, 11.5],
+      'text-offset': [0, 1.1],
+      'text-anchor': 'top',
+      'text-optional': true,
+      'symbol-sort-key': ['coalesce', ['get', 'minZoom'], 14]
+    },
+    paint: {
+      'text-color': '#33302c',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.4
+    }
+  });
+
+  applyWorldPeakFilter();
+  console.log(`[peaks] worldwide tileset ${tileset} added`);
+}
+
+/**
+ * The panel's filters, applied to the hosted tileset. Country and name work
+ * here because our own build put them in the tiles — the basemap's peaks have
+ * neither. Anything already on your list is hidden, since the account draws
+ * those itself, in their status colour.
+ */
+function applyWorldPeakFilter() {
+  if (!state.map?.getLayer('world-peaks-dots')) return;
+  const { minEle, countries, search, statuses } = state.filters;
+
+  const filter = ['all',
+    // The same ladder the core file's peaks climb: each peak carries the zoom
+    // its isolation earned it, and the detail slider shifts the lot.
+    ['<=', ['-', ['coalesce', ['get', 'minZoom'], 14], state.filters.detail], ['zoom']],
+    ['>=', ['coalesce', ['get', 'ele'], 0], minEle],
+    ['<=', ['coalesce', ['get', 'ele'], 0], ceiling()],
+    ['!', ['in', ['get', 'id'], ['literal', [...state.statuses.keys()].map(Number)]]]
+  ];
+
+  // This layer draws untagged peaks, so it obeys that switch too.
+  if (!statuses.has('none')) filter.push(['==', ['literal', 'hidden'], ['literal', 'shown']]);
+  if (countries.size) {
+    filter.push(['any', ...[...countries].map(c => ['in', c, ['coalesce', ['get', 'country'], '']])]);
+  }
+  if (search.trim()) {
+    filter.push(['in', search.trim().toLowerCase(), ['downcase', ['coalesce', ['get', 'name'], '']]]);
+  }
+
+  for (const id of ['world-peaks-dots', 'world-peaks-labels']) state.map.setFilter(id, filter);
 }
 
 /**
@@ -548,6 +694,10 @@ function applyTilePeakFilter() {
   const { minEle, detail } = state.filters;
 
   const filter = ['all',
+    // Named only. The tiles carry plenty of nameless summits — 88 of 548
+    // around Aconcagua — and a dot you cannot name is not a plan.
+    ['has', 'name'],
+    ['!=', ['get', 'name'], ''],
     ['>=', ['coalesce', ['get', 'ele'], 0], minEle],
     ['<=', ['coalesce', ['get', 'ele'], 0], ceiling()],
     ['<=', ['coalesce', ['get', 'rank'], 5],
@@ -587,6 +737,7 @@ function applyFilters() {
   state.map.setFilter('peaks-labels', untagged);
   state.map.setFilter('peaks-tagged', [...filter, ['!=', ['get', 'status'], 'none']]);
   applyTilePeakFilter();
+  applyWorldPeakFilter();
   renderCounts();
 }
 
@@ -687,6 +838,8 @@ async function setStatus(id, status, extra = {}) {
 function tileFeature(lon, lat, properties) {
   const existing = nearestFeature([lon, lat], 120);
   if (existing) return existing;
+  // Nothing nameless reaches your list; the layer filters those out anyway.
+  if (!properties.name) return null;
 
   const id = idFromPosition(lon, lat);
   const key = String(id);
@@ -704,6 +857,33 @@ function tileFeature(lon, lat, properties) {
       country: '??',
       source: 'tile',
       minZoom: 0,
+      status: state.statuses.get(key)?.status ?? 'none'
+    }
+  };
+  state.features.push(feature);
+  state.byId.set(key, feature);
+  refreshSource();
+  return feature;
+}
+
+/**
+ * A peak from our own tileset, as a feature the rest of the app understands.
+ * These already carry our id, so tagging one is the same as tagging a peak
+ * from the core file — it simply was not among the few thousand shipped.
+ */
+function worldFeature(lon, lat, properties) {
+  const key = String(properties.id);
+  const known = state.byId.get(key);
+  if (known) return known;
+
+  const feature = {
+    type: 'Feature',
+    id: properties.id,
+    geometry: { type: 'Point', coordinates: [lon, lat] },
+    properties: {
+      ...properties,
+      country: properties.country ?? '??',
+      source: properties.source ?? 'world',
       status: state.statuses.get(key)?.status ?? 'none'
     }
   };

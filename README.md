@@ -140,6 +140,48 @@ peak within 80 m of the line — which is how one August day comes back as both
 Brunnsteinspitze and Rotwandlspitze. A route remembers its folder, so importing
 twice imports nothing twice.
 
+### Where the peaks come from
+
+Three sources, each covering what the others cannot:
+
+| source | what it holds | when |
+|---|---|---|
+| `data/peaks-core.geojson` | the few thousand most isolated peaks on earth | always, offline |
+| a MapTiler tileset | every peak we know, with our own fields | online, when `PEAKS_TILESET_ID` is set |
+| the basemap's `mountain_peak` | whatever neither of those has heard of | behind the *More peaks, worldwide* switch |
+
+Plus your own list, which carries each peak's position and so draws at any zoom
+anywhere, with or without a network.
+
+```bash
+node scripts/build-world-peaks.mjs                 # every country
+node scripts/build-world-peaks.mjs --countries AR,CL,PE
+```
+
+Writes `data/world-peaks.geojson` — upload that to
+[MapTiler Cloud](https://cloud.maptiler.com/), which tiles it automatically,
+and put the tileset id in `config.js` as `PEAKS_TILESET_ID`. The free plan
+takes vector uploads up to 1 GB, which is far more than every named peak on
+earth needs. It also writes `data/peaks-core.geojson`, which ships in the repo.
+
+**Two sources, each where it is better.** OSM (`data/peaks.geojson`, the Alps
+snapshot) has node ids matching what you have already tagged, countries
+resolved against real boundaries, and prominence where mappers recorded it.
+GeoNames covers everywhere else, carrying a country, a state and an elevation —
+and every mountain feature in it is named, so no "Unnamed peak" can come out.
+Where the two overlap, OSM wins: a GeoNames peak within 150 m of an OSM one is
+the same summit under another name.
+
+**Nothing decides what is "important enough".** Every named peak goes in, and
+the zoom it appears at comes from filling tiles rather than from a threshold:
+peaks are walked from the most isolated down, and each takes the first zoom
+whose tile still has room for it. So the screen holds about the same number of
+peaks wherever you are, and they are the ones that dominate there. A 4000 m
+bump outside El Alto has higher ground a few kilometres away and waits for a
+close zoom; Pico da Bandeira at 2890 m has none for 2,300 km and appears at
+zoom 2, next to Everest and Aconcagua. No elevation cut-offs, no per-region
+rules, nothing to tune when you take an interest in a new continent.
+
 ### Peaks beyond the snapshot
 
 **More peaks, worldwide** in the panel draws the basemap's own `mountain_peak`
