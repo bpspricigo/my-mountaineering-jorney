@@ -105,8 +105,16 @@ the numbers never pay for the smaller line.
 popup. Click to drop points — clicking a peak snaps to its summit — and the
 line follows the trails between them, with distance, ascent, a time estimate,
 the hardest SAC grade on the way and an elevation profile updating as you go.
-*Out & back* retraces the way home. *Save as outing* hands the drawn track to
-the form below, stats and summits already filled in.
+Drag a stop to move it, or drag the line itself to add one in between — both
+re-route only the legs they touch. *Reverse* walks it the other way, re-routing
+so ascent and descent swap rather than simply flipping the list. *Out & back*
+retraces the way home. *Save as outing* hands the drawn track to the form
+below, stats and summits already filled in.
+
+The magnet is BRouter itself: it routes from the nearest routable way, so a
+stop dropped near a path comes back on it, and the marker is then moved onto
+the routed line's own end. A stop pinned to a summit stays put — the route
+bends to the summit, not the other way round.
 
 Routing is [BRouter](https://brouter.de)'s public instance, the engine
 gpx.studio uses: no key, open CORS, hiking profiles that read `sac_scale`, and

@@ -871,74 +871,220 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
 }
 
 /* ─── Drawing a route ───────────────────────────────────────────────────────── */
+/*
+ * While a route is being drawn the panel belongs to it: wider, and with the
+ * planner's own sections out of the way. Planning is a different job from
+ * browsing peaks, and doing it through a 200 px box was the complaint.
+ */
+body.is-drawing .peaks-panel {
+  width: 380px;
+}
+
+body.is-drawing .peaks-panel > *:not(#peaks-draw) {
+  display: none;
+}
+
 .peaks-draw {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  padding: 0.75rem;
-  border-radius: 10px;
-  background: #eef2ff;
-  border: 1px solid #c7d2fe;
+  gap: 0.75rem;
 }
 
 .peaks-draw[hidden] {
   display: none;
 }
 
+/* The bare `header` selector up top paints the site's dark bar; this is a
+   header inside a panel, so it has to opt out of all of it. */
 .draw-head {
   display: flex;
   align-items: center;
-  font-size: 0.85rem;
-  color: #1d4ed8;
+  gap: 0.5rem;
+  position: static;
+  background: none;
+  box-shadow: none;
+  color: var(--text);
+  padding: 0 0 0.6rem;
+  border-bottom: 1px solid var(--border);
 }
 
-.draw-head strong {
+.draw-head h2 {
   flex: 1;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1d4ed8;
 }
 
 .draw-head button {
   background: none;
   border: none;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   line-height: 1;
-  color: inherit;
+  color: var(--text-muted);
   cursor: pointer;
+}
+
+.draw-head button:hover {
+  color: var(--text);
+}
+
+.draw-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* ─── Numbers ──────────────────────────────────────────────────────────────── */
+.draw-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+}
+
+.draw-stat {
+  background: #eef2ff;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.draw-stat--wide {
+  grid-column: 1 / -1;
+  background: #1d4ed8;
+}
+
+.draw-stat--wide .draw-stat-value,
+.draw-stat--wide .draw-stat-label {
+  color: #fff;
+}
+
+.draw-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #1d4ed8;
+}
+
+.draw-stat-value--small {
+  font-size: 0.85rem;
+  padding: 0.2rem 0;
+}
+
+.draw-stat-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+/* ─── Elevation profile ────────────────────────────────────────────────────── */
+.draw-profile-box {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.draw-profile {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+
+.draw-profile-high,
+.draw-profile-low {
+  position: absolute;
+  right: 0.4rem;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0 0.2rem;
+  border-radius: 3px;
+}
+
+.draw-profile-high { top: 0.25rem; }
+.draw-profile-low { bottom: 0.25rem; }
+
+/* ─── Stops ────────────────────────────────────────────────────────────────── */
+.draw-stops {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 190px;
+  overflow-y: auto;
+}
+
+.draw-stop {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.35rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.draw-stop:hover {
+  background: var(--chip-bg);
+}
+
+.draw-stop-number {
+  width: 19px;
+  height: 19px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid #1d4ed8;
+  color: #1d4ed8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.draw-stop.is-summit .draw-stop-number {
+  border-color: #2f7d32;
+  color: #2f7d32;
+}
+
+.draw-stop-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draw-stop-name small {
+  color: var(--text-muted);
+}
+
+.draw-stop-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+
+.draw-stop-remove:hover {
+  color: #b3261e;
 }
 
 .peaks-draw select {
   width: 100%;
   font-family: inherit;
   font-size: 0.82rem;
-  padding: 0.35rem 0.5rem;
+  padding: 0.4rem 0.5rem;
   border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--surface);
   color: var(--text);
-}
-
-.draw-hint {
-  font-size: 0.74rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.draw-profile {
-  width: 100%;
-  height: 46px;
-  background: var(--surface);
-  border-radius: 6px;
-}
-
-.draw-profile-scale {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  margin-top: -0.35rem;
-}
-
-.peaks-draw .peaks-stats {
-  margin-top: 0;
 }
 
 .peaks-draw button:disabled {
@@ -956,6 +1102,13 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   background: #1e40af;
   border-color: #1e40af;
   color: #fff;
+}
+
+@media (max-width: 720px) {
+  body.is-drawing .peaks-panel {
+    width: auto;
+    max-height: 70%;
+  }
 }
 
 /* ─── Outing form ───────────────────────────────────────────────────────────── */

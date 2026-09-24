@@ -9,7 +9,12 @@
  * distance and ascent honest without a second service.
  *
  * One request per leg, not per route: adding a tenth waypoint routes only from
- * the ninth, so undo is instant and a long route costs nothing to extend.
+ * the ninth, dragging one re-routes the two legs it touches, and undo pops a
+ * leg rather than recomputing everything.
+ *
+ * The magnet is BRouter itself. It routes from the nearest routable way, so a
+ * point dropped near a path comes back on it — and a dragged point is moved to
+ * the routed line's own end, which is where the walk actually starts.
  *
  * BROUTER_URL is the only line that binds this to a server. Point it at your
  * own instance — docker run -v …:/segments4 abrensch/brouter — and nothing
@@ -45,11 +50,12 @@ const RouteDraw = (() => {
 
   let active = false;
   let profile = 'hiking-mountain';
-  /** [lon, lat] per click, with the peak it snapped to when it did. */
+  /** { point: [lon, lat], peak } per stop, in walking order. */
   let waypoints = [];
-  /** One per gap between waypoints, so undo just pops both. */
+  /** One per gap between waypoints: legs[i] joins waypoints[i] to waypoints[i + 1]. */
   let legs = [];
   let busy = false;
+  let dragging = null;   // { index } while a waypoint is under the cursor
 
   // ─── Routing ────────────────────────────────────────────────────────────────
 
@@ -71,10 +77,14 @@ const RouteDraw = (() => {
     const feature = (await response.json()).features?.[0];
     if (!feature?.geometry?.coordinates?.length) throw new Error('no route found');
 
+    const ascent = Number(feature.properties['filtered ascend']) || 0;
+    // plain-ascend is the net gain, so what goes down is what does not stay up.
+    const net = Number(feature.properties['plain-ascend']) || 0;
     return {
       coordinates: feature.geometry.coordinates,
       metres: Number(feature.properties['track-length']) || 0,
-      ascent: Number(feature.properties['filtered ascend']) || 0,
+      ascent,
+      descent: Math.max(0, ascent - net),
       seconds: Number(feature.properties['total-time']) || 0,
       sac: hardestSac(feature.properties.messages),
       straight: false
@@ -86,40 +96,78 @@ const RouteDraw = (() => {
     coordinates: [from, to],
     metres: Math.round(RouteStore.metresBetween(from, to)),
     ascent: 0,
+    descent: 0,
     seconds: 0,
     sac: null,
     straight: true
   });
+
+  /**
+   * Routes the legs on either side of a waypoint, then moves that waypoint onto
+   * the line BRouter actually found — the magnet. Everything that changes a
+   * point goes through here.
+   */
+  async function reroute(indexes) {
+    const targets = [...new Set(indexes)].filter(i => i >= 0 && i < legs.length);
+    if (!targets.length) return;
+
+    busy = true;
+    render();
+    await Promise.all(targets.map(async i => {
+      const from = waypoints[i].point, to = waypoints[i + 1].point;
+      try {
+        legs[i] = await routeLeg(from, to);
+      } catch (err) {
+        console.warn('[draw] routing failed, joining straight:', err.message);
+        legs[i] = straightLeg(from, to);
+      }
+    }));
+    busy = false;
+    snapWaypoints();
+    render();
+  }
+
+  /** Each stop sits where its routed leg begins or ends, not where it was dropped. */
+  function snapWaypoints() {
+    waypoints.forEach((stop, i) => {
+      // A summit is where it is; the route bends to it, not the other way round.
+      if (stop.peak) return;
+      const before = legs[i - 1], after = legs[i];
+      if (after && !after.straight) stop.point = after.coordinates[0].slice(0, 2);
+      else if (before && !before.straight) stop.point = before.coordinates.at(-1).slice(0, 2);
+    });
+  }
 
   // ─── Points ─────────────────────────────────────────────────────────────────
 
   async function addPoint(lngLat, peak = null) {
     if (!active || busy) return;
     const point = [Number(lngLat[0].toFixed(6)), Number(lngLat[1].toFixed(6))];
-    const previous = waypoints.at(-1);
     waypoints.push({ point, peak });
 
-    if (!previous) { render(); return; }
+    if (waypoints.length === 1) { render(); return; }
 
-    busy = true;
-    render();
-    try {
-      legs.push(await routeLeg(previous.point, point));
-    } catch (err) {
-      console.warn('[draw] routing failed, joining straight:', err.message);
-      legs.push(straightLeg(previous.point, point));
-      flash('No path there — joined in a straight line', true);
+    const index = waypoints.length - 2;
+    legs.push(straightLeg(waypoints[index].point, point));
+    await reroute([index]);
+  }
+
+  function removePoint(index) {
+    if (index < 0 || index >= waypoints.length) return;
+    waypoints.splice(index, 1);
+
+    // Closing the gap: the legs either side become one.
+    if (index === 0) legs.shift();
+    else if (index === waypoints.length) legs.pop();
+    else {
+      legs.splice(index - 1, 2, straightLeg(waypoints[index - 1].point, waypoints[index].point));
+      reroute([index - 1]);
+      return;
     }
-    busy = false;
     render();
   }
 
-  function undo() {
-    if (!waypoints.length) return;
-    waypoints.pop();
-    legs.pop();
-    render();
-  }
+  const undo = () => removePoint(waypoints.length - 1);
 
   function clear() {
     waypoints = [];
@@ -127,30 +175,101 @@ const RouteDraw = (() => {
     render();
   }
 
-  /** The way back, reversed — how most days in the mountains actually go. */
+  /** Walk it the other way. Ascent and descent swap, so every leg is re-routed. */
+  async function reverse() {
+    if (waypoints.length < 2 || busy) return;
+    waypoints.reverse();
+    legs = waypoints.slice(1).map((stop, i) => straightLeg(waypoints[i].point, stop.point));
+    await reroute(legs.map((_, i) => i));
+  }
+
+  /** The way back, retraced — how most days in the mountains actually go. */
   async function outAndBack() {
     if (waypoints.length < 2 || busy) return;
     const back = [...waypoints].reverse().slice(1);
     for (const stop of back) await addPoint(stop.point, stop.peak);
   }
 
+  // ─── Dragging ───────────────────────────────────────────────────────────────
+
+  function startDrag(map, index) {
+    dragging = { index };
+    map.getCanvas().style.cursor = 'grabbing';
+
+    const onMove = event => {
+      const point = [event.lngLat.lng, event.lngLat.lat];
+      waypoints[index].point = point;
+      // A dragged point is no longer pinned to its summit.
+      waypoints[index].peak = null;
+      // Straight lines to the neighbours while the mouse is down: routing every
+      // frame would be a request per pixel.
+      if (legs[index - 1]) legs[index - 1] = straightLeg(waypoints[index - 1].point, point);
+      if (legs[index]) legs[index] = straightLeg(point, waypoints[index + 1].point);
+      render();
+    };
+
+    const onUp = () => {
+      map.off('mousemove', onMove);
+      map.getCanvas().style.cursor = 'crosshair';
+      dragging = null;
+      reroute([index - 1, index]);
+    };
+
+    map.on('mousemove', onMove);
+    map.once('mouseup', onUp);
+  }
+
+  function enableDragging(map) {
+    map.on('mousedown', 'draw-points', event => {
+      if (!active) return;
+      event.preventDefault();   // the map must not pan under the point
+      startDrag(map, Number(event.features[0].properties.index));
+    });
+
+    // Dragging the line itself inserts a stop there, the way a route planner
+    // lets you pull a path onto the trail you meant.
+    for (const layer of ['draw-line', 'draw-line-straight']) {
+      map.on('mousedown', layer, event => {
+        if (!active || dragging) return;
+        event.preventDefault();
+        const leg = Number(event.features[0].properties.index);
+        const point = [event.lngLat.lng, event.lngLat.lat];
+        waypoints.splice(leg + 1, 0, { point, peak: null });
+        legs.splice(leg, 1,
+          straightLeg(waypoints[leg].point, point),
+          straightLeg(point, waypoints[leg + 2].point));
+        startDrag(map, leg + 1);
+      });
+    }
+
+    for (const layer of ['draw-points', 'draw-line', 'draw-line-straight']) {
+      map.on('mouseenter', layer, () => {
+        if (active && !dragging) map.getCanvas().style.cursor = 'grab';
+      });
+      map.on('mouseleave', layer, () => {
+        if (active && !dragging) map.getCanvas().style.cursor = 'crosshair';
+      });
+    }
+  }
+
   // ─── Totals ─────────────────────────────────────────────────────────────────
 
   function summary() {
-    const metres = legs.reduce((sum, leg) => sum + leg.metres, 0);
-    const ascent = legs.reduce((sum, leg) => sum + leg.ascent, 0);
-    const seconds = legs.reduce((sum, leg) => sum + leg.seconds, 0);
-    const sac = SAC_ORDER.find(scale => legs.some(leg => leg.sac === scale)) ?? null;
-    return { metres, ascent, seconds, sac, straight: legs.some(leg => leg.straight) };
+    const total = key => legs.reduce((sum, leg) => sum + leg[key], 0);
+    return {
+      metres: total('metres'),
+      ascent: total('ascent'),
+      descent: total('descent'),
+      seconds: total('seconds'),
+      sac: SAC_ORDER.find(scale => legs.some(leg => leg.sac === scale)) ?? null,
+      straight: legs.some(leg => leg.straight)
+    };
   }
 
   /** Every leg end to end, without the duplicated point at each junction. */
   function coordinates() {
     const all = [];
-    for (const leg of legs) {
-      const points = all.length ? leg.coordinates.slice(1) : leg.coordinates;
-      all.push(...points);
-    }
+    for (const leg of legs) all.push(...(all.length ? leg.coordinates.slice(1) : leg.coordinates));
     return all;
   }
 
@@ -162,18 +281,18 @@ const RouteDraw = (() => {
 
     map.getSource('draw-line').setData({
       type: 'FeatureCollection',
-      features: legs.map((leg, i) => ({
+      features: legs.map((leg, index) => ({
         type: 'Feature',
-        properties: { straight: leg.straight, index: i },
+        properties: { straight: leg.straight, index },
         geometry: { type: 'LineString', coordinates: leg.coordinates }
       }))
     });
 
     map.getSource('draw-points').setData({
       type: 'FeatureCollection',
-      features: waypoints.map((stop, i) => ({
+      features: waypoints.map((stop, index) => ({
         type: 'Feature',
-        properties: { label: String(i + 1), peak: stop.peak?.name ?? '' },
+        properties: { index, label: String(index + 1), summit: stop.peak ? 1 : 0 },
         geometry: { type: 'Point', coordinates: stop.point }
       }))
     });
@@ -188,7 +307,7 @@ const RouteDraw = (() => {
     // Two layers over one source rather than one with a data-driven dash:
     // line-dasharray takes no data expression, so the difference between a
     // routed leg and a straight guess has to be a filter.
-    const lineWidth = ['interpolate', ['linear'], ['zoom'], 8, 2.5, 14, 5];
+    const lineWidth = ['interpolate', ['linear'], ['zoom'], 8, 3, 14, 5.5];
 
     map.addLayer({
       id: 'draw-line',
@@ -205,11 +324,7 @@ const RouteDraw = (() => {
       source: 'draw-line',
       filter: ['==', ['get', 'straight'], true],
       layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: {
-        'line-color': '#1d4ed8',
-        'line-width': lineWidth,
-        'line-dasharray': [1.5, 1.5]
-      }
+      paint: { 'line-color': '#1d4ed8', 'line-width': lineWidth, 'line-dasharray': [1.5, 1.5] }
     });
 
     map.addLayer({
@@ -217,10 +332,11 @@ const RouteDraw = (() => {
       type: 'circle',
       source: 'draw-points',
       paint: {
-        'circle-radius': 7,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 9],
         'circle-color': '#ffffff',
-        'circle-stroke-color': '#1d4ed8',
-        'circle-stroke-width': 2.5
+        // A stop pinned to a summit is filled, so it reads as a destination.
+        'circle-stroke-color': ['case', ['==', ['get', 'summit'], 1], '#2f7d32', '#1d4ed8'],
+        'circle-stroke-width': 3
       }
     });
 
@@ -236,34 +352,64 @@ const RouteDraw = (() => {
       },
       paint: { 'text-color': '#1d4ed8' }
     });
+
+    enableDragging(map);
   }
 
   // ─── Panel ──────────────────────────────────────────────────────────────────
 
-  /** Elevation against distance, as a line small enough to sit in the panel. */
+  /** Elevation against distance, filled, with the climbing visible in it. */
   function profileSvg() {
     const points = coordinates().filter(point => point.length > 2);
     if (points.length < 3) return '';
 
-    const width = 258, height = 46;
+    const width = 320, height = 96;
     let run = 0;
     const samples = points.map((point, i) => {
       if (i) run += RouteStore.metresBetween(points[i - 1], point);
       return [run, point[2]];
     });
+    if (!run) return '';
 
     const highest = Math.max(...samples.map(s => s[1]));
     const lowest = Math.min(...samples.map(s => s[1]));
     const spread = Math.max(1, highest - lowest);
-    const path = samples.map(([along, ele]) =>
-      `${(along / run * width).toFixed(1)},${(height - (ele - lowest) / spread * (height - 6) - 3).toFixed(1)}`
-    ).join(' ');
+    const x = along => (along / run * width).toFixed(1);
+    const y = ele => (height - 4 - (ele - lowest) / spread * (height - 14)).toFixed(1);
+    const line = samples.map(([along, ele]) => `${x(along)},${y(ele)}`).join(' ');
 
     return `
-      <svg class="draw-profile" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-        <polyline points="${path}" fill="none" stroke="#1d4ed8" stroke-width="1.5" />
-      </svg>
-      <div class="draw-profile-scale"><span>${Math.round(lowest)} m</span><span>${Math.round(highest)} m</span></div>
+      <div class="draw-profile-box">
+        <svg class="draw-profile" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img"
+             aria-label="Elevation profile, ${Math.round(lowest)} to ${Math.round(highest)} metres">
+          <polygon points="0,${height} ${line} ${width},${height}" fill="#dbeafe" />
+          <polyline points="${line}" fill="none" stroke="#1d4ed8" stroke-width="1.5" />
+        </svg>
+        <span class="draw-profile-high">${Math.round(highest)} m</span>
+        <span class="draw-profile-low">${Math.round(lowest)} m</span>
+      </div>
+    `;
+  }
+
+  const clock = seconds =>
+    `${Math.floor(seconds / 3600)}:${String(Math.round((seconds % 3600) / 60)).padStart(2, '0')} h`;
+
+  function waypointList() {
+    if (!waypoints.length) return '';
+    return `
+      <ol class="draw-stops">
+        ${waypoints.map((stop, i) => `
+          <li class="draw-stop${stop.peak ? ' is-summit' : ''}">
+            <span class="draw-stop-number">${i + 1}</span>
+            <span class="draw-stop-name">
+              ${stop.peak
+                ? `${escapeHtml(stop.peak.name ?? 'Summit')} <small>${stop.peak.ele ?? '?'} m</small>`
+                : `<small>${stop.point[1].toFixed(4)}, ${stop.point[0].toFixed(4)}</small>`}
+            </span>
+            <button type="button" class="draw-stop-remove" data-index="${i}" aria-label="Remove stop ${i + 1}">×</button>
+          </li>
+        `).join('')}
+      </ol>
     `;
   }
 
@@ -271,17 +417,51 @@ const RouteDraw = (() => {
     const el = document.getElementById('peaks-draw');
     if (!el) return;
     el.hidden = !active;
+    document.body.classList.toggle('is-drawing', active);
     if (!active) return;
 
-    const { metres, ascent, seconds, sac, straight } = summary();
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.round((seconds % 3600) / 60);
+    const { metres, ascent, descent, seconds, sac, straight } = summary();
 
     el.innerHTML = `
-      <div class="draw-head">
-        <strong>Drawing a route</strong>
+      <header class="draw-head">
+        <h2>Planning a route</h2>
         <button type="button" id="draw-close" aria-label="Stop drawing">×</button>
+      </header>
+
+      <p class="draw-hint">
+        ${waypoints.length === 0
+          ? 'Click the map to drop the first stop. Clicking a peak pins its summit.'
+          : busy ? 'Finding a path…'
+          : 'Drag a stop to move it, drag the line to add one in between.'}
+        ${straight ? '<br><strong>Dashed legs have no path</strong> — measured straight.' : ''}
+      </p>
+
+      <div class="draw-stats">
+        <div class="draw-stat draw-stat--wide">
+          <span class="draw-stat-value">${(metres / 1000).toFixed(1)}</span>
+          <span class="draw-stat-label">km</span>
+        </div>
+        <div class="draw-stat">
+          <span class="draw-stat-value">${ascent}</span>
+          <span class="draw-stat-label">m up</span>
+        </div>
+        <div class="draw-stat">
+          <span class="draw-stat-value">${descent}</span>
+          <span class="draw-stat-label">m down</span>
+        </div>
+        <div class="draw-stat">
+          <span class="draw-stat-value">${seconds ? clock(seconds) : '—'}</span>
+          <span class="draw-stat-label">estimate</span>
+        </div>
+        <div class="draw-stat">
+          <span class="draw-stat-value draw-stat-value--small">${sac ? SAC_LABELS[sac] : '—'}</span>
+          <span class="draw-stat-label">hardest</span>
+        </div>
       </div>
+
+      ${profileSvg()}
+
+      ${waypointList()}
 
       <label class="peaks-field">
         <span>Routing</span>
@@ -291,24 +471,11 @@ const RouteDraw = (() => {
         </select>
       </label>
 
-      <p class="draw-hint">
-        ${waypoints.length === 0
-          ? 'Click the map to drop the first point. Clicking a peak snaps to its summit.'
-          : busy ? 'Finding a path…'
-          : `${waypoints.length} point${waypoints.length === 1 ? '' : 's'}${straight ? ' · dashed legs have no path' : ''}`}
-      </p>
-
-      <dl class="peaks-stats">
-        <div class="peaks-stat"><dt>Distance</dt><dd>${(metres / 1000).toFixed(1)} km</dd></div>
-        <div class="peaks-stat"><dt>Ascent</dt><dd>${ascent} m</dd></div>
-        ${seconds ? `<div class="peaks-stat"><dt>Estimate</dt><dd>${hours}:${String(minutes).padStart(2, '0')} h</dd></div>` : ''}
-        ${sac ? `<div class="peaks-stat"><dt>Hardest</dt><dd>${SAC_LABELS[sac] ?? sac}</dd></div>` : ''}
-      </dl>
-
-      ${profileSvg()}
-
       <div class="peaks-buttons">
         <button type="button" id="draw-undo"${waypoints.length ? '' : ' disabled'}>Undo</button>
+        <button type="button" id="draw-reverse"${legs.length ? '' : ' disabled'}>Reverse</button>
+      </div>
+      <div class="peaks-buttons">
         <button type="button" id="draw-back"${legs.length ? '' : ' disabled'}>Out &amp; back</button>
         <button type="button" id="draw-clear"${waypoints.length ? '' : ' disabled'}>Clear</button>
       </div>
@@ -319,31 +486,23 @@ const RouteDraw = (() => {
 
     el.querySelector('#draw-close').addEventListener('click', stop);
     el.querySelector('#draw-undo').addEventListener('click', undo);
+    el.querySelector('#draw-reverse').addEventListener('click', reverse);
     el.querySelector('#draw-back').addEventListener('click', outAndBack);
     el.querySelector('#draw-clear').addEventListener('click', clear);
     el.querySelector('#draw-save').addEventListener('click', save);
     el.querySelector('#draw-profile').addEventListener('change', async event => {
       profile = event.target.value;
-      await reroute();
+      await reroute(legs.map((_, i) => i));
     });
-  }
-
-  /** Re-runs every leg, for when the profile changes under a drawn route. */
-  async function reroute() {
-    if (waypoints.length < 2) return;
-    busy = true;
-    render();
-    const rebuilt = [];
-    for (let i = 1; i < waypoints.length; i++) {
-      try {
-        rebuilt.push(await routeLeg(waypoints[i - 1].point, waypoints[i].point));
-      } catch {
-        rebuilt.push(straightLeg(waypoints[i - 1].point, waypoints[i].point));
-      }
-    }
-    legs = rebuilt;
-    busy = false;
-    render();
+    el.querySelectorAll('.draw-stop-remove').forEach(button => {
+      button.addEventListener('click', () => removePoint(Number(button.dataset.index)));
+    });
+    el.querySelectorAll('.draw-stop').forEach((row, i) => {
+      row.addEventListener('click', event => {
+        if (event.target.closest('.draw-stop-remove')) return;
+        state.map.easeTo({ center: waypoints[i].point, zoom: Math.max(state.map.getZoom(), 13) });
+      });
+    });
   }
 
   // ─── Saving ─────────────────────────────────────────────────────────────────
@@ -366,7 +525,7 @@ const RouteDraw = (() => {
         moving_seconds: seconds || null,
         difficulty: sac ? SAC_LABELS[sac] : null,
         fullPoints: points,
-        // The summits clicked while drawing, which beat guessing from the line.
+        // The summits pinned while drawing, which beat guessing from the line.
         title: waypoints.map(stop => stop.peak?.name).filter(Boolean).at(-1) ?? ''
       }
     });
@@ -386,6 +545,7 @@ const RouteDraw = (() => {
     active = false;
     clear();
     if (state.map) state.map.getCanvas().style.cursor = '';
+    document.body.classList.remove('is-drawing');
     renderPanel();
   }
 
