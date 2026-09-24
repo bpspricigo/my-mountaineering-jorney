@@ -120,6 +120,11 @@ const PeakStore = (() => {
     name: entry.name ?? null,
     ele: entry.ele ?? null,
     country: entry.country ?? null,
+    // Position and provenance, so a tagged peak can be drawn without the
+    // snapshot — which is the only way to dream of something in the Andes.
+    lat: entry.lat ?? null,
+    lon: entry.lon ?? null,
+    source: entry.source ?? null,
     climbed_on: entry.date ?? null,
     note: entry.note ?? null
   });
@@ -132,6 +137,8 @@ const PeakStore = (() => {
       country: row.country,
       updated: row.updated_at?.slice(0, 10)
     };
+    if (row.lat != null && row.lon != null) { entry.lat = row.lat; entry.lon = row.lon; }
+    if (row.source) entry.source = row.source;
     if (row.climbed_on) entry.date = row.climbed_on;
     if (row.note) entry.note = row.note;
     return entry;

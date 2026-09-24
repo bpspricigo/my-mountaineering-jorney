@@ -21,18 +21,52 @@ const STATUSES = {
 };
 const TAGGED = Object.keys(STATUSES).filter(s => s !== 'none');
 
-// Every code the snapshot can carry — scripts/fetch-peaks.mjs tags peaks with
-// these seven, and '??' is a peak inside none of their boundaries.
-const COUNTRY_NAMES = {
-  DE: 'Germany',
-  AT: 'Austria',
-  IT: 'Italy',
-  CH: 'Switzerland',
-  FR: 'France',
-  SI: 'Slovenia',
-  LI: 'Liechtenstein',
-  '??': 'Unknown'
-};
+/**
+ * Country names for any code, now that a peak can come from anywhere. The
+ * browser already knows them in every language it speaks, which beats a list
+ * that stops at the seven countries the Alps snapshot happens to cover.
+ */
+const REGION_NAMES = (() => {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'region' });
+  } catch {
+    return null;
+  }
+})();
+
+const COUNTRY_NAMES = new Proxy({}, {
+  get: (_, code) => {
+    if (typeof code !== 'string' || code === '??') return undefined;
+    try {
+      return REGION_NAMES?.of(code) ?? undefined;
+    } catch {
+      return undefined;   // not a region code, e.g. a name we were handed
+    }
+  },
+  has: () => true
+});
+
+/**
+ * The country a peak stands in, asked of MapTiler's geocoder — one request,
+ * only when tagging something that has no country of its own, which is every
+ * peak taken from the basemap's tiles. It answered Everest as Nepal where a
+ * boundary file said China, so it is worth the round trip.
+ */
+async function resolveCountry(lon, lat) {
+  const key = typeof CONFIG !== 'undefined' ? CONFIG.MAPTILER_API_KEY : null;
+  if (!key) return null;
+  try {
+    const url = `https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${key}&types=country&limit=1`;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const feature = (await response.json()).features?.[0];
+    const code = feature?.properties?.country_code ?? feature?.properties?.['ISO3166-1'];
+    return code ? code.toUpperCase() : null;
+  } catch (err) {
+    console.warn('[peaks] could not resolve the country:', err);
+    return null;
+  }
+}
 
 const state = {
   features: [],              // GeoJSON features, properties.status kept current
@@ -75,6 +109,34 @@ const STATUS_PRIORITY = ['done', 'planned', 'dream', 'attempted'];
  */
 const PEAK_MIN_ZOOM = ['coalesce', ['get', 'minZoom'], 0];
 
+/**
+ * The basemap's own peaks, kept behind a switch.
+ *
+ * MapTiler's tiles carry a `mountain_peak` layer worldwide from zoom 7 — name,
+ * elevation and a rank of 1 (most prominent) to 5 — and they are already
+ * downloaded to draw the map, so this costs no request and no quota. It is
+ * what puts Aconcagua on the map without shipping a snapshot of the Andes.
+ *
+ * What it does not carry is a country or an OSM id, which is why it is an
+ * addition rather than a replacement: the country filter only knows about
+ * peaks from the snapshot and from your own list.
+ */
+const TILE_PEAKS = { source: 'maptiler_planet', sourceLayer: 'mountain_peak', key: 'mmj.tile-peaks' };
+
+/**
+ * An id for a peak that has none of its own.
+ *
+ * Tiles give no OSM node id, so identity comes from position, rounded to five
+ * decimals — about a metre, far finer than two summits are ever apart. The
+ * 1e15 offset puts these above every real OSM node id (~1.3e10 today), so the
+ * two id spaces can never meet.
+ */
+function idFromPosition(lon, lat) {
+  const latPart = Math.round((lat + 90) * 1e5);
+  const lonPart = Math.round((lon + 180) * 1e5);
+  return 1e15 + latPart * 36000001 + lonPart;
+}
+
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 async function initPeaks() {
@@ -106,10 +168,18 @@ async function initPeaks() {
   }));
 
   state.byId = new Map(state.features.map(f => [String(f.properties.id), f]));
+  mergeAccountPeaks();
 
   const elevations = state.features.map(f => f.properties.ele);
-  state.filters.minEle = Math.floor(Math.min(...elevations) / 100) * 100;
-  state.filters.maxEle = Math.ceil(Math.max(...elevations) / 100) * 100;
+  // The sliders run over what the snapshot holds, but the map now shows peaks
+  // from beyond it. A slider at its top therefore means "no limit" rather than
+  // 4900 m, or the Alps would quietly hide Aconcagua.
+  state.eleRange = {
+    min: Math.floor(Math.min(...elevations) / 100) * 100,
+    max: Math.ceil(Math.max(...elevations) / 100) * 100
+  };
+  state.filters.minEle = state.eleRange.min;
+  state.filters.maxEle = state.eleRange.max;
 
   console.log(`[peaks] ${state.features.length} peaks, ${state.statuses.size} tagged`);
 
@@ -130,6 +200,37 @@ async function initPeaks() {
     renderTaggedList();
     renderAccount();
   });
+}
+
+/**
+ * Peaks your list holds that the snapshot does not — tagged from the basemap's
+ * tiles, or from a snapshot that has since been regenerated without them.
+ * They carry their own position, so they draw like any other peak and appear
+ * at every zoom: a dream is worth seeing from across the continent.
+ */
+function mergeAccountPeaks() {
+  let added = 0;
+  for (const [id, entry] of state.statuses) {
+    if (state.byId.has(id) || entry.lat == null || entry.lon == null) continue;
+    const feature = {
+      type: 'Feature',
+      id: Number(id),
+      geometry: { type: 'Point', coordinates: [entry.lon, entry.lat] },
+      properties: {
+        id: Number(id),
+        name: entry.name ?? 'Unnamed peak',
+        ele: entry.ele ?? 0,
+        country: entry.country ?? '??',
+        source: entry.source ?? 'account',
+        minZoom: 0,
+        status: entry.status
+      }
+    };
+    state.features.push(feature);
+    state.byId.set(id, feature);
+    added++;
+  }
+  if (added) console.log(`[peaks] ${added} peaks from your list that the snapshot does not have`);
 }
 
 // ─── Map ──────────────────────────────────────────────────────────────────────
@@ -196,6 +297,7 @@ function buildMap() {
       }
     });
 
+    addTilePeakLayers(map);
     RouteDraw.addLayers(map);
 
     // A peak that dominates its surroundings should look like it. `rank` runs
@@ -289,6 +391,21 @@ function buildMap() {
       }
     });
 
+    map.on('click', 'tile-peaks-dots', event => {
+      const [lon, lat] = event.features[0].geometry.coordinates;
+      const properties = event.features[0].properties;
+      event.originalEvent.peakHandled = true;
+
+      if (RouteDraw.isActive()) {
+        RouteDraw.addPoint([lon, lat], { name: properties.name, ele: properties.ele });
+        return;
+      }
+      openPicker(tileFeature(lon, lat, properties));
+    });
+
+    map.on('mouseenter', 'tile-peaks-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'tile-peaks-dots', () => { map.getCanvas().style.cursor = RouteDraw.isActive() ? 'crosshair' : ''; });
+
     for (const layer of ['peaks-dots', 'peaks-tagged']) {
       map.on('click', layer, e => {
         const feature = e.features[0];
@@ -355,17 +472,105 @@ function addStatusIcons(map) {
   }
 }
 
+/**
+ * The basemap's peaks, under ours so our own dots always win a collision, and
+ * hollow so the two never read as the same thing.
+ */
+function addTilePeakLayers(map) {
+  const visible = tilePeaksOn() ? 'visible' : 'none';
+
+  map.addLayer({
+    id: 'tile-peaks-dots',
+    type: 'circle',
+    source: TILE_PEAKS.source,
+    'source-layer': TILE_PEAKS.sourceLayer,
+    layout: { visibility: visible },
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 2, 14, 4],
+      'circle-color': 'rgba(255, 255, 255, 0.9)',
+      'circle-stroke-color': '#6b5ca5',
+      'circle-stroke-width': 1.5
+    }
+  });
+
+  map.addLayer({
+    id: 'tile-peaks-labels',
+    type: 'symbol',
+    source: TILE_PEAKS.source,
+    'source-layer': TILE_PEAKS.sourceLayer,
+    layout: {
+      visibility: visible,
+      'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
+      'text-font': ['Noto Sans Regular'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 9, 9, 14, 11],
+      'text-offset': [0, 1],
+      'text-anchor': 'top',
+      'text-optional': true,
+      // rank 1 is the one people have heard of, so it is placed first.
+      'symbol-sort-key': ['coalesce', ['get', 'rank'], 5]
+    },
+    paint: {
+      'text-color': '#4a4160',
+      'text-halo-color': '#ffffff',
+      'text-halo-width': 1.3
+    }
+  });
+
+  applyTilePeakFilter();
+}
+
+const tilePeaksOn = () => {
+  try {
+    return localStorage.getItem(TILE_PEAKS.key) === 'on';
+  } catch {
+    return false;
+  }
+};
+
+function setTilePeaks(on) {
+  try {
+    localStorage.setItem(TILE_PEAKS.key, on ? 'on' : 'off');
+  } catch { /* private browsing: the switch still works for this visit */ }
+
+  for (const id of ['tile-peaks-dots', 'tile-peaks-labels']) {
+    if (state.map?.getLayer(id)) state.map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+  }
+  renderCounts();
+}
+
+/**
+ * The elevation sliders apply here too; the detail slider decides how deep into
+ * the ranks to go, since rank is all the tiles offer in place of isolation.
+ * Country and status filters cannot: a tile peak has neither.
+ */
+function applyTilePeakFilter() {
+  if (!state.map?.getLayer('tile-peaks-dots')) return;
+  const { minEle, detail } = state.filters;
+
+  const filter = ['all',
+    ['>=', ['coalesce', ['get', 'ele'], 0], minEle],
+    ['<=', ['coalesce', ['get', 'ele'], 0], ceiling()],
+    ['<=', ['coalesce', ['get', 'rank'], 5],
+      ['+', ['interpolate', ['linear'], ['zoom'], 8, 1, 11, 3, 13, 5], detail]]
+  ];
+  for (const id of ['tile-peaks-dots', 'tile-peaks-labels']) state.map.setFilter(id, filter);
+}
+
 function refreshSource() {
   state.map?.getSource('peaks')?.setData(collection());
 }
 
+/** The upper slider, or no ceiling at all when it sits at the top. */
+const ceiling = () =>
+  state.filters.maxEle >= (state.eleRange?.max ?? Infinity) ? 99999 : state.filters.maxEle;
+
 function applyFilters() {
   if (!state.map?.getLayer('peaks-dots')) return;
-  const { minEle, maxEle, statuses, countries, search } = state.filters;
+  const { minEle, statuses, countries, search } = state.filters;
 
   const filter = ['all',
     ['>=', ['get', 'ele'], minEle],
-    ['<=', ['get', 'ele'], maxEle],
+    ['<=', ['get', 'ele'], ceiling()],
     ['in', ['get', 'status'], ['literal', [...statuses]]]
   ];
   // country is "AT", "DE" or "AT/DE" for a border summit — a substring test
@@ -381,6 +586,7 @@ function applyFilters() {
   state.map.setFilter('peaks-dots', untagged);
   state.map.setFilter('peaks-labels', untagged);
   state.map.setFilter('peaks-tagged', [...filter, ['!=', ['get', 'status'], 'none']]);
+  applyTilePeakFilter();
   renderCounts();
 }
 
@@ -406,12 +612,12 @@ function passesZoomRank(properties, zoom) {
 }
 
 function visibleFeatures() {
-  const { minEle, maxEle, statuses, countries, search } = state.filters;
+  const { minEle, statuses, countries, search } = state.filters;
   const needle = search.trim().toLowerCase();
   const zoom = Math.floor(state.map?.getZoom() ?? 9);
   return state.features.filter(f => {
     const p = f.properties;
-    if (p.ele < minEle || p.ele > maxEle) return false;
+    if (p.ele < minEle || p.ele > ceiling()) return false;
     if (!statuses.has(p.status)) return false;
     if (countries.size && ![...countries].some(c => p.country.includes(c))) return false;
     if (needle && !(p.name ?? '').toLowerCase().includes(needle)) return false;
@@ -441,9 +647,24 @@ async function setStatus(id, status, extra = {}) {
         name: feature.properties.name,
         ele: feature.properties.ele,
         country: feature.properties.country === '??' ? null : feature.properties.country,
+        // Where it is and where it came from, so the peak survives the
+        // snapshot it was found in.
+        lon: feature.geometry.coordinates[0],
+        lat: feature.geometry.coordinates[1],
+        source: feature.properties.source ?? 'osm',
         updated: new Date().toISOString().slice(0, 10),
         ...extra
       };
+
+  // A peak from the tiles arrives without a country; ask for one so the filter
+  // and the stats stay honest.
+  if (status !== 'none' && !entry.country && entry.lat != null) {
+    const code = await resolveCountry(entry.lon, entry.lat);
+    if (code) {
+      entry.country = code;
+      feature.properties.country = code;
+    }
+  }
 
   if (!(await PeakStore.set(key, entry))) {
     flash(`Could not save ${feature.properties.name} — try again`, true);
@@ -454,6 +675,55 @@ async function setStatus(id, status, extra = {}) {
   refreshSource();
   applyFilters();
   renderTaggedList();
+}
+
+/**
+ * A peak clicked in the basemap's own layer, as a feature of ours.
+ *
+ * If the snapshot already holds that summit — the two sources overlap all over
+ * the Alps — its own feature is used instead, so tagging keeps the OSM id and
+ * a peak never ends up on the list twice under two identities.
+ */
+function tileFeature(lon, lat, properties) {
+  const existing = nearestFeature([lon, lat], 120);
+  if (existing) return existing;
+
+  const id = idFromPosition(lon, lat);
+  const key = String(id);
+  const known = state.byId.get(key);
+  if (known) return known;
+
+  const feature = {
+    type: 'Feature',
+    id,
+    geometry: { type: 'Point', coordinates: [lon, lat] },
+    properties: {
+      id,
+      name: properties.name ?? 'Unnamed peak',
+      ele: properties.ele ?? 0,
+      country: '??',
+      source: 'tile',
+      minZoom: 0,
+      status: state.statuses.get(key)?.status ?? 'none'
+    }
+  };
+  state.features.push(feature);
+  state.byId.set(key, feature);
+  refreshSource();
+  return feature;
+}
+
+/** The nearest peak we already know about, within a few paces. */
+function nearestFeature(point, metres) {
+  const degrees = metres / 111000 * 2;
+  let best = null, bestDistance = Infinity;
+  for (const feature of state.features) {
+    const [lon, lat] = feature.geometry.coordinates;
+    if (Math.abs(lon - point[0]) > degrees || Math.abs(lat - point[1]) > degrees) continue;
+    const away = RouteStore.metresBetween(point, [lon, lat]);
+    if (away < bestDistance && away <= metres) { best = feature; bestDistance = away; }
+  }
+  return best;
 }
 
 /** Everything actually tagged — tombstones and untagged peaks excluded. */
@@ -809,7 +1079,7 @@ function buildPanel(peaks) {
       </label>
 
       <label class="peaks-field">
-        <span>Maximum elevation — <output id="peaks-max-out">${maxEle} m</output></span>
+        <span>Maximum elevation — <output id="peaks-max-out">no limit</output></span>
         <input type="range" id="peaks-max" min="${minEle}" max="${maxEle}" step="50" value="${maxEle}">
       </label>
 
@@ -825,6 +1095,15 @@ function buildPanel(peaks) {
           `).join('')}
         </div>
       </fieldset>
+
+      <label class="peaks-check peaks-check--switch">
+        <input type="checkbox" id="peaks-tile-toggle">
+        <span>More peaks, worldwide</span>
+      </label>
+      <small class="peaks-hint">
+        Every peak the basemap knows — the Andes, the Himalaya, anywhere. They carry
+        no country, so a country filter hides them.
+      </small>
 
       <fieldset class="peaks-field">
         <legend>Country</legend>
@@ -994,6 +1273,15 @@ function parseDuration(text) {
 }
 
 function wirePanel() {
+  const tileToggle = document.getElementById('peaks-tile-toggle');
+  tileToggle.checked = tilePeaksOn();
+  tileToggle.addEventListener('change', () => {
+    setTilePeaks(tileToggle.checked);
+    if (tileToggle.checked && state.filters.countries.size) {
+      flash('Worldwide peaks have no country — clear the country filter to see them', true);
+    }
+  });
+
   const search = document.getElementById('peaks-search');
   search.addEventListener('input', () => {
     state.filters.search = search.value;
@@ -1010,7 +1298,9 @@ function wirePanel() {
     state.filters.minEle = Number(min.value);
     state.filters.maxEle = Number(max.value);
     minOut.textContent = `${min.value} m`;
-    maxOut.textContent = `${max.value} m`;
+    // At the top the slider stops being a ceiling, so it should stop claiming
+    // to be one: there are peaks above the snapshot's highest.
+    maxOut.textContent = Number(max.value) >= state.eleRange.max ? 'no limit' : `${max.value} m`;
     applyFilters();
   });
 
@@ -1019,7 +1309,9 @@ function wirePanel() {
     state.filters.minEle = Number(min.value);
     state.filters.maxEle = Number(max.value);
     minOut.textContent = `${min.value} m`;
-    maxOut.textContent = `${max.value} m`;
+    // At the top the slider stops being a ceiling, so it should stop claiming
+    // to be one: there are peaks above the snapshot's highest.
+    maxOut.textContent = Number(max.value) >= state.eleRange.max ? 'no limit' : `${max.value} m`;
     applyFilters();
   });
 

@@ -140,6 +140,26 @@ peak within 80 m of the line — which is how one August day comes back as both
 Brunnsteinspitze and Rotwandlspitze. A route remembers its folder, so importing
 twice imports nothing twice.
 
+### Peaks beyond the snapshot
+
+**More peaks, worldwide** in the panel draws the basemap's own `mountain_peak`
+layer — every peak MapTiler knows, from zoom 7, anywhere on earth. Those tiles
+are already downloaded to draw the map, so it costs no request and no quota,
+and it is what puts Aconcagua on the map without shipping a snapshot of the
+Andes. They carry a name, an elevation and a rank of 1–5 (the detail slider
+decides how deep into the ranks to go), but no country, so a country filter
+hides them.
+
+Tagging one keeps it. `peak_status` carries `lat`/`lon`, so a tagged peak is
+drawn from your own list at any zoom whether or not any snapshot has heard of
+it, and the country is asked of MapTiler's geocoder at that moment — one
+request, and it puts Everest in Nepal where a boundary file said China. Peaks
+from the tiles have no OSM node id, so they get a deterministic one derived
+from their position, offset above 1e15 where no real OSM id can reach.
+
+Clicking a tile peak within 120 m of one already in the snapshot opens *that*
+peak instead, so the two sources cannot put the same summit on your list twice.
+
 ### Regenerating the peak snapshot
 
 ```bash

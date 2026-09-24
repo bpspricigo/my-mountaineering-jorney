@@ -552,6 +552,11 @@ body.peaks-panel-collapsed .peaks-panel-toggle {
   cursor: pointer;
 }
 
+.peaks-check--switch {
+  margin-top: 0.6rem;
+  font-weight: 600;
+}
+
 .peaks-check-count {
   margin-left: auto;
   font-size: 0.72rem;
