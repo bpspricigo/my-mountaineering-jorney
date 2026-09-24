@@ -148,9 +148,6 @@ const PEAK_MIN_ZOOM = ['coalesce', ['get', 'minZoom'], 0];
  */
 const TILE_PEAKS = { source: 'maptiler_planet', sourceLayer: 'mountain_peak', key: 'mmj.tile-peaks' };
 
-/** MapTiler names the layer in an uploaded tileset after the file it came from. */
-const WORLD_PEAKS_LAYER = 'world-peaks';
-
 /**
  * An id for a peak that has none of its own.
  *
@@ -538,21 +535,38 @@ function addStatusIcons(map) {
  * peaks from the core file, because they are the same data — the file holds the
  * few thousand that have to be there before a tile arrives.
  */
-function addWorldPeakLayers(map) {
+async function addWorldPeakLayers(map) {
   const tileset = typeof CONFIG !== 'undefined' ? CONFIG.PEAKS_TILESET_ID : null;
   if (!tileset) return;
 
   const key = CONFIG.MAPTILER_API_KEY;
-  map.addSource('world-peaks', {
-    type: 'vector',
-    url: `https://api.maptiler.com/tiles/${tileset}/tiles.json?key=${key}`
-  });
+  const url = `https://api.maptiler.com/tiles/${tileset}/tiles.json?key=${key}`;
+
+  // The layer inside an uploaded tileset is named by MapTiler, after the file
+  // or the upload, so it is read from the TileJSON rather than guessed.
+  let sourceLayer;
+  try {
+    const tilejson = await fetch(url).then(r => {
+      if (!r.ok) throw new Error(`tiles.json → HTTP ${r.status}`);
+      return r.json();
+    });
+    sourceLayer = tilejson.vector_layers?.[0]?.id;
+    if (!sourceLayer) throw new Error('no vector layer in the tileset');
+  } catch (err) {
+    console.warn('[peaks] worldwide tileset unavailable:', err.message);
+    return;
+  }
+
+  map.addSource('world-peaks', { type: 'vector', url });
+
+  // Under our own peaks, which are added first and must stay on top.
+  const under = map.getLayer('peaks-dots') ? 'peaks-dots' : undefined;
 
   map.addLayer({
     id: 'world-peaks-dots',
     type: 'circle',
     source: 'world-peaks',
-    'source-layer': WORLD_PEAKS_LAYER,
+    'source-layer': sourceLayer,
     paint: {
       'circle-color': STATUSES.none.color,
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 7, 2, 14, 4.5],
@@ -560,13 +574,13 @@ function addWorldPeakLayers(map) {
       'circle-stroke-width': 1,
       'circle-opacity': 0.85
     }
-  });
+  }, under);
 
   map.addLayer({
     id: 'world-peaks-labels',
     type: 'symbol',
     source: 'world-peaks',
-    'source-layer': WORLD_PEAKS_LAYER,
+    'source-layer': sourceLayer,
     layout: {
       'text-field': ['concat', ['get', 'name'], '  ', ['to-string', ['get', 'ele']], ' m'],
       'text-font': ['Noto Sans Regular'],
@@ -581,10 +595,10 @@ function addWorldPeakLayers(map) {
       'text-halo-color': '#ffffff',
       'text-halo-width': 1.4
     }
-  });
+  }, under);
 
   applyWorldPeakFilter();
-  console.log(`[peaks] worldwide tileset ${tileset} added`);
+  console.log(`[peaks] worldwide tileset ready, layer "${sourceLayer}"`);
 }
 
 /**
