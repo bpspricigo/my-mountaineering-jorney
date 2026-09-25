@@ -193,8 +193,11 @@ async function readGeoNames(code) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
 
     // The stated elevation where GeoNames has one, otherwise its SRTM reading.
-    const ele = Number(c[15]) || Number(c[16]) || null;
-    if (!ele) continue;                        // a peak with no height cannot be ranked
+    // Both columns use -9999 for "not known", and the SRTM one does so for most
+    // of Antarctica; taken literally it puts mountains below the sea.
+    const stated = Number(c[15]), srtm = Number(c[16]);
+    const ele = [stated, srtm].find(v => Number.isFinite(v) && v > -500 && v !== 0) ?? null;
+    if (ele === null) continue;                // a peak with no height cannot be ranked
 
     peaks.push({
       id: idFromPosition(lon, lat),
@@ -334,6 +337,9 @@ const asFeature = peak => ({
     name: peak.name,
     ele: Math.round(peak.ele),
     isolation: peak.isolation,
+    // "tier", not "minZoom": MapTiler strips minzoom from an uploaded tileset,
+    // the name being reserved for the tileset's own metadata.
+    tier: peak.minZoom,
     minZoom: peak.minZoom,
     source: peak.source,
     ...(peak.country && { country: peak.country }),

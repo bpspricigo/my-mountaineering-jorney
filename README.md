@@ -158,11 +158,20 @@ node scripts/build-world-peaks.mjs                 # every country
 node scripts/build-world-peaks.mjs --countries AR,CL,PE
 ```
 
-Writes `data/world-peaks.geojson` — upload that to
+Writes `data/world-peaks.geojson` — upload that as a **tileset** (not a
+dataset: those are the editable kind, capped at 10 MB) at
 [MapTiler Cloud](https://cloud.maptiler.com/), which tiles it automatically,
 and put the tileset id in `config.js` as `PEAKS_TILESET_ID`. The free plan
-takes vector uploads up to 1 GB, which is far more than every named peak on
-earth needs. It also writes `data/peaks-core.geojson`, which ships in the repo.
+takes vector uploads up to 1 GB, far more than every named peak on earth needs.
+It also writes `data/peaks-core.geojson`, which ships in the repo.
+
+**MapTiler strips a property called `minZoom`** — the name is reserved for a
+tileset's own metadata — so the same number is written twice, as `tier` as
+well. Where a tileset predates that, the map falls back to thresholds on
+`isolation`, calibrated against the built file to keep 60–80 peaks on screen at
+any zoom anywhere: at zoom 6, 50 over the Andes, 72 over the Alps, 63 over
+Kilimanjaro. Uploaded points are **not** thinned by MapTiler — a zoom 3 view
+arrives with 177,688 of them — so that filtering is what keeps the map fast.
 
 **Two sources, each where it is better.** OSM (`data/peaks.geojson`, the Alps
 snapshot) has node ids matching what you have already tagged, countries

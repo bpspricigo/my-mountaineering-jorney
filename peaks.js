@@ -216,7 +216,9 @@ async function initPeaks() {
   // from beyond it. A slider at its top therefore means "no limit" rather than
   // 4900 m, or the Alps would quietly hide Aconcagua.
   state.eleRange = {
-    min: Math.floor(Math.min(...elevations) / 100) * 100,
+    // Not below the sea: a handful of coastal rocks sit a metre or two under it
+    // and would otherwise label the slider "-100 m".
+    min: Math.max(0, Math.floor(Math.min(...elevations) / 100) * 100),
     max: Math.ceil(Math.max(...elevations) / 100) * 100
   };
   state.filters.minEle = state.eleRange.min;
@@ -421,9 +423,10 @@ function buildMap() {
 
     applyFilters();
 
-    // The count of what is on screen changes with zoom, not just with filters.
-    map.on('zoomend', renderCounts);
-    map.on('moveend', renderCounts);
+    // 'idle' rather than 'moveend': the count is of what the map has actually
+    // drawn, and at moveend the tiles for the new view have not arrived, so it
+    // read zero every time you panned.
+    map.on('idle', renderCounts);
 
     // A click on the map that did not land on a peak. The layer handlers below
     // run first and mark the event, so one click never drops two points.
@@ -602,6 +605,38 @@ async function addWorldPeakLayers(map) {
 }
 
 /**
+ * How much isolation a peak needs to earn its place, per zoom.
+ *
+ * The build assigns every peak a zoom by filling tiles, but MapTiler strips a
+ * property called minZoom — the name is reserved in tile metadata — so that
+ * number does not survive the upload. Isolation does, and these thresholds were
+ * calibrated against the built file to put 60–80 peaks on a 1400×950 screen
+ * wherever you are: at zoom 6, 50 over the Andes, 72 over the Alps, 63 over
+ * Kilimanjaro. From zoom 11 in there is no threshold at all, because by then
+ * everything in view fits.
+ *
+ * A future upload will carry the same number as `tier`, which is not reserved;
+ * the filter below prefers it when the tiles have it.
+ */
+const WORLD_LADDER = [
+  [2, 854920], [3, 388000], [4, 186300], [5, 95680], [6, 49280],
+  [7, 26450], [8, 13710], [9, 7510], [10, 3530], [11, 1500], [12, 0]
+];
+
+function worldZoomLadder() {
+  // The detail slider shifts the whole ladder, as it does for the core peaks.
+  const zoom = ['+', ['zoom'], state.filters.detail];
+  const threshold = ['interpolate', ['linear'], zoom, ...WORLD_LADDER.flat()];
+  // A peak with nothing higher anywhere has no isolation at all; it always shows.
+  const isolation = ['coalesce', ['get', 'isolation'], 1e9];
+
+  return ['case',
+    ['has', 'tier'], ['<=', ['get', 'tier'], zoom],
+    ['>=', isolation, threshold]
+  ];
+}
+
+/**
  * The panel's filters, applied to the hosted tileset. Country and name work
  * here because our own build put them in the tiles — the basemap's peaks have
  * neither. Anything already on your list is hidden, since the account draws
@@ -612,9 +647,7 @@ function applyWorldPeakFilter() {
   const { minEle, countries, search, statuses } = state.filters;
 
   const filter = ['all',
-    // The same ladder the core file's peaks climb: each peak carries the zoom
-    // its isolation earned it, and the detail slider shifts the lot.
-    ['<=', ['-', ['coalesce', ['get', 'minZoom'], 14], state.filters.detail], ['zoom']],
+    worldZoomLadder(),
     ['>=', ['coalesce', ['get', 'ele'], 0], minEle],
     ['<=', ['coalesce', ['get', 'ele'], 0], ceiling()],
     ['!', ['in', ['get', 'id'], ['literal', [...state.statuses.keys()].map(Number)]]]
@@ -1545,11 +1578,30 @@ function wirePanel() {
   });
 }
 
+/**
+ * What is actually on the map, not what the core file holds: most peaks now
+ * arrive as tiles, so counting the loaded features would have reported 4,000
+ * over the Andes while the screen showed sixty. Deduplicated by id, because a
+ * peak on a tile boundary is returned once per tile.
+ */
+function shownPeaks() {
+  const layers = ['peaks-dots', 'peaks-tagged', 'world-peaks-dots', 'tile-peaks-dots']
+    .filter(id => state.map?.getLayer(id));
+  if (!layers.length) return visibleFeatures();
+
+  const seen = new Set();
+  for (const feature of state.map.queryRenderedFeatures({ layers })) {
+    const p = feature.properties;
+    seen.add(p.id ?? `${p.name}@${feature.geometry.coordinates.map(n => n.toFixed(4))}`);
+  }
+  return { length: seen.size };
+}
+
 function renderCounts() {
   const el = document.getElementById('peaks-counts');
   if (!el) return;
 
-  const visible = visibleFeatures();
+  const visible = shownPeaks();
   const counts = Object.fromEntries(TAGGED.map(s => [s, 0]));
   for (const { entry } of taggedEntries()) counts[entry.status]++;
 
