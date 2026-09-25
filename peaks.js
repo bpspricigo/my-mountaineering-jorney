@@ -165,7 +165,7 @@ function idFromPosition(lon, lat) {
 // ─── Load ─────────────────────────────────────────────────────────────────────
 
 async function initPeaks() {
-  const root = document.getElementById('tab-peaks');
+  const root = document.querySelector('.peaks-stage');
 
   const hasTileset = typeof CONFIG !== 'undefined' && Boolean(CONFIG.PEAKS_TILESET_ID);
 
@@ -670,6 +670,13 @@ function applyWorldPeakFilter() {
  * hollow so the two never read as the same thing.
  */
 function addTilePeakLayers(map) {
+  // The basemap owns this source. A style without it — a different map, or one
+  // swapped in later — should cost the switch, not throw on every layer.
+  if (!map.getSource(TILE_PEAKS.source)) {
+    console.warn(`[peaks] no ${TILE_PEAKS.source} source in the basemap — worldwide peaks switch unavailable`);
+    return;
+  }
+
   const visible = tilePeaksOn() ? 'visible' : 'none';
 
   map.addLayer({
@@ -1274,7 +1281,7 @@ function buildPanel(peaks) {
 
   document.getElementById('peaks-panel').innerHTML = `
     <header class="peaks-panel-head">
-      <h2>Peak Planner</h2>
+      <h1>My Mountaineering Journey</h1>
       <p>Click any peak to mark it.</p>
     </header>
 
@@ -1501,6 +1508,7 @@ function parseDuration(text) {
 
 function wirePanel() {
   const tileToggle = document.getElementById('peaks-tile-toggle');
+  tileToggle.closest('.peaks-check').hidden = !state.map?.getLayer('tile-peaks-dots');
   tileToggle.checked = tilePeaksOn();
   tileToggle.addEventListener('change', () => {
     setTilePeaks(tileToggle.checked);
@@ -1863,15 +1871,6 @@ async function importStatuses(event) {
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/**
- * Called by app.js when the Peaks tab is shown again. While a tab is hidden its
- * container has no dimensions, so MapLibre's cached size is stale and the map
- * comes back distorted until something forces a recalculation.
- */
-function resizePeaksMap() {
-  state.map?.resize();
-}
 
 let flashTimer = null;
 
