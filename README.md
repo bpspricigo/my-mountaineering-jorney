@@ -140,6 +140,77 @@ peak within 80 m of the line — which is how one August day comes back as both
 Brunnsteinspitze and Rotwandlspitze. A route remembers its folder, so importing
 twice imports nothing twice.
 
+### Where the peaks come from
+
+Three sources, each covering what the others cannot:
+
+| source | what it holds | when |
+|---|---|---|
+| `data/peaks-core.geojson` | the few thousand most isolated peaks on earth | always, offline |
+| a MapTiler tileset | every peak we know, with our own fields | online, when `PEAKS_TILESET_ID` is set |
+| the basemap's `mountain_peak` | whatever neither of those has heard of | behind the *More peaks, worldwide* switch |
+
+Plus your own list, which carries each peak's position and so draws at any zoom
+anywhere, with or without a network.
+
+```bash
+node scripts/build-world-peaks.mjs                 # every country
+node scripts/build-world-peaks.mjs --countries AR,CL,PE
+```
+
+Writes `data/world-peaks.geojson` — upload that as a **tileset** (not a
+dataset: those are the editable kind, capped at 10 MB) at
+[MapTiler Cloud](https://cloud.maptiler.com/), which tiles it automatically,
+and put the tileset id in `config.js` as `PEAKS_TILESET_ID`. The free plan
+takes vector uploads up to 1 GB, far more than every named peak on earth needs.
+It also writes `data/peaks-core.geojson`, which ships in the repo.
+
+**MapTiler strips a property called `minZoom`** — the name is reserved for a
+tileset's own metadata — so the same number is written twice, as `tier` as
+well. Where a tileset predates that, the map falls back to thresholds on
+`isolation`, calibrated against the built file to keep 60–80 peaks on screen at
+any zoom anywhere: at zoom 6, 50 over the Andes, 72 over the Alps, 63 over
+Kilimanjaro. Uploaded points are **not** thinned by MapTiler — a zoom 3 view
+arrives with 177,688 of them — so that filtering is what keeps the map fast.
+
+**Two sources, each where it is better.** OSM (`data/peaks.geojson`, the Alps
+snapshot) has node ids matching what you have already tagged, countries
+resolved against real boundaries, and prominence where mappers recorded it.
+GeoNames covers everywhere else, carrying a country, a state and an elevation —
+and every mountain feature in it is named, so no "Unnamed peak" can come out.
+Where the two overlap, OSM wins: a GeoNames peak within 150 m of an OSM one is
+the same summit under another name.
+
+**Nothing decides what is "important enough".** Every named peak goes in, and
+the zoom it appears at comes from filling tiles rather than from a threshold:
+peaks are walked from the most isolated down, and each takes the first zoom
+whose tile still has room for it. So the screen holds about the same number of
+peaks wherever you are, and they are the ones that dominate there. A 4000 m
+bump outside El Alto has higher ground a few kilometres away and waits for a
+close zoom; Pico da Bandeira at 2890 m has none for 2,300 km and appears at
+zoom 2, next to Everest and Aconcagua. No elevation cut-offs, no per-region
+rules, nothing to tune when you take an interest in a new continent.
+
+### Peaks beyond the snapshot
+
+**More peaks, worldwide** in the panel draws the basemap's own `mountain_peak`
+layer — every peak MapTiler knows, from zoom 7, anywhere on earth. Those tiles
+are already downloaded to draw the map, so it costs no request and no quota,
+and it is what puts Aconcagua on the map without shipping a snapshot of the
+Andes. They carry a name, an elevation and a rank of 1–5 (the detail slider
+decides how deep into the ranks to go), but no country, so a country filter
+hides them.
+
+Tagging one keeps it. `peak_status` carries `lat`/`lon`, so a tagged peak is
+drawn from your own list at any zoom whether or not any snapshot has heard of
+it, and the country is asked of MapTiler's geocoder at that moment — one
+request, and it puts Everest in Nepal where a boundary file said China. Peaks
+from the tiles have no OSM node id, so they get a deterministic one derived
+from their position, offset above 1e15 where no real OSM id can reach.
+
+Clicking a tile peak within 120 m of one already in the snapshot opens *that*
+peak instead, so the two sources cannot put the same summit on your list twice.
+
 ### Regenerating the peak snapshot
 
 ```bash
