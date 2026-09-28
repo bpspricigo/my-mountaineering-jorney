@@ -1,12 +1,15 @@
 # My Mountaineering Journey
 
-A personal web app to track and visualize hikes and mountaineering adventures. Built with vanilla HTML/CSS/JS, MapLibre GL for maps, and GPX files for route data.
+A personal planner for the mountains: one map, every peak on it, and the walks
+you have done or intend to. Vanilla HTML/CSS/JS with MapLibre GL, Supabase for
+an account, BRouter for routing.
 
-## Features
+## What it does
 
-- **Journal** — completed hikes with route maps, stats, and descriptions
-- **Planner** — upcoming routes on the radar
-- **Peaks** — every peak in the region on one map, tagged dream / planned / attempted / done, with what your done list adds up to
+- **Tag any peak** dream / planned / attempted / done, anywhere on earth
+- **Draw a route** that follows the trails, with distance, ascent and an elevation profile
+- **Record an outing** against the peaks it crosses — track, stats, Strava and photo links, gear notes
+- **See what it adds up to**: highest, countries, every summit stacked, last climbed
 
 ## Running locally
 
@@ -57,9 +60,8 @@ For planned routes, add the folder under `gpx/future/` with the same structure.
 
 ## The peak planner
 
-The Peaks tab loads `data/peaks.geojson`, a snapshot of OpenStreetMap peaks. Click
-any peak to mark it **dream**, **planned**, **attempted** or **done**; filter by
-elevation, country, status or name.
+The page is the map. Click any peak to mark it **dream**, **planned**,
+**attempted** or **done**; filter by elevation, country, status or name.
 
 ### Where the statuses live
 

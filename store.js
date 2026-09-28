@@ -311,9 +311,7 @@ const PeakStore = (() => {
   const account = () => ({ available: Boolean(client), email: user?.email ?? null });
 
   async function signIn(email) {
-    // Come back to the planner, not the journal the site opens on.
     const back = new URL(location.pathname, location.origin);
-    back.searchParams.set('tab', 'peaks');
     const { error } = await client.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: back.href }

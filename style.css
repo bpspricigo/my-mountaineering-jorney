@@ -28,280 +28,22 @@ body {
   min-height: 100vh;
 }
 
-/* ─── Header ─────────────────────────────────────────────────────────────────── */
-header {
-  background: var(--header-bg);
-  color: var(--header-text);
-  padding: 1rem 2rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
-}
-
-.header-inner {
-  max-width: 860px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.5rem;
-}
-
-header h1 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-  color: var(--header-text);
-}
-
-/* ─── Tab buttons ───────────────────────────────────────────────────────────── */
-nav {
-  display: flex;
-  gap: 0.4rem;
-}
-
-.tab-btn {
-  background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.65);
-  padding: 0.35rem 1rem;
-  border-radius: 20px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-family: inherit;
-}
-
-.tab-btn:hover {
-  border-color: rgba(255, 255, 255, 0.55);
-  color: #fff;
-}
-
-.tab-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-/* ─── Main content ──────────────────────────────────────────────────────────── */
-main {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-}
-
-/* ─── Tab intro (Planner header) ────────────────────────────────────────────── */
-.tab-intro {
-  margin-bottom: 2rem;
-}
-
-.tab-intro h2 {
-  font-size: 1.4rem;
-  font-weight: 700;
-  color: var(--text);
-  margin-bottom: 0.3rem;
-}
-
-.tab-intro p {
-  color: var(--text-muted);
-  font-size: 0.925rem;
-}
-
-/* ─── Hike cards ────────────────────────────────────────────────────────────── */
-.hike-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  margin-bottom: 2.5rem;
-  overflow: hidden;
-}
-
-.hike-card--planned {
-  border-left: 4px solid #f0a500;
-}
-
-/* ─── Map ───────────────────────────────────────────────────────────────────── */
-.map {
-  width: 100%;
-  height: 400px;
-}
-
-/* ─── Card body ─────────────────────────────────────────────────────────────── */
-.card-body {
-  padding: 1.25rem 1.5rem 1.5rem;
-}
-
-.card-header-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.4rem;
-}
-
-.card-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.3;
-}
-
-.badge {
-  flex-shrink: 0;
-  background: #f0a500;
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  margin-top: 0.25rem;
-  letter-spacing: 0.3px;
-}
-
-.card-location {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  margin-bottom: 0.75rem;
-}
-
-.flag-icon {
-  width: 18px;
-  height: auto;
-  border-radius: 2px;
-  box-shadow: 0 0 1px rgba(0, 0, 0, 0.2);
-}
-
-/* ─── Stat chips ─────────────────────────────────────────────────────────────── */
-.card-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  padding: 0.75rem 0;
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.875rem;
-}
-
-.stat-chip {
-  background: var(--chip-bg);
-  padding: 0.3rem 0.75rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  color: #333;
-  white-space: nowrap;
-}
-
-/* ─── Description ───────────────────────────────────────────────────────────── */
-.card-description {
-  font-size: 0.925rem;
-  color: #444;
-  line-height: 1.65;
-  margin-bottom: 0.875rem;
-}
-
-/* ─── Card footer ───────────────────────────────────────────────────────────── */
-.card-footer {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.card-date {
-  display: inline-block;
-  background: var(--chip-bg);
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-}
-
-.card-photos {
-  display: inline-block;
-  background: var(--chip-bg);
-  color: var(--accent);
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.35rem 0.75rem;
-  border-radius: 6px;
-  text-decoration: none;
-  transition: background 0.15s ease;
-}
-
-.card-photos:hover {
-  background: #ddd9d3;
-}
-
-/* ─── Track markers (A / B) ─────────────────────────────────────────────────── */
-.track-marker {
-  background: var(--header-bg);
-  color: #fff;
-  font-weight: 700;
-  font-size: 12px;
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
-}
-
-/* ─── Popup ──────────────────────────────────────────────────────────────────── */
-.popup-content {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.popup-content strong {
-  font-size: 14px;
-}
-
 /* ─── Peak planner ──────────────────────────────────────────────────────────── */
 /*
- * The planner is a map with controls floating over it, not a column of content.
- * The whole window below the header belongs to the map; the body stops
- * scrolling so that dragging the map never drags the page with it.
+ * One page, and the map is it. The window belongs to the map; everything else
+ * floats over it, and the body never scrolls, so dragging the map cannot drag
+ * the page with it.
  */
-body.tab-fullscreen {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;      /* mobile browsers, where 100vh sits under the chrome */
+html,
+body {
+  height: 100%;
   overflow: hidden;
-}
-
-body.tab-fullscreen main {
-  flex: 1;
-  max-width: none;
-  margin: 0;
-  padding: 0;
-  min-height: 0;       /* lets the flex child actually shrink */
-  display: flex;
-  flex-direction: column;
-}
-
-/* Flex rather than height:100%, which depends on the parent having resolved a
-   definite height and collapses to nothing when it has not. */
-body.tab-fullscreen #tab-peaks {
-  flex: 1;
-  min-height: 0;
 }
 
 .peaks-stage {
   position: relative;
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;      /* mobile browsers, where 100vh sits under the chrome */
   isolation: isolate;
 }
 
@@ -346,7 +88,7 @@ body.peaks-panel-collapsed .peaks-panel {
   pointer-events: none;
 }
 
-.peaks-panel-head h2 {
+.peaks-panel-head h1 {
   font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.2;
