@@ -286,16 +286,18 @@ function buildMap() {
     style: PEAK_STYLE,
     center: [11.6, 47.55],
     zoom: 9,
-    // v3 only takes a boolean here, so the credit goes on the control itself.
-    attributionControl: false
+    // Enough to look up a valley in 3D. Steeper shows mostly sky, and every
+    // degree towards the horizon brings more tiles into view.
+    maxPitch: 70,
+    attributionControl: {
+      compact: true,
+      customAttribution: 'Peak data © OpenStreetMap contributors (ODbL)'
+    }
   });
   state.map = map;
 
-  map.addControl(new maplibregl.AttributionControl({
-    compact: true,
-    customAttribution: 'Peak data © OpenStreetMap contributors (ODbL)'
-  }), 'bottom-right');
-  map.addControl(new maplibregl.NavigationControl(), 'top-right');
+  // The compass leans with the camera, so a tilted map says so.
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   // Bottom-left belongs to the floating panel now.
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 120 }), 'bottom-right');
 
@@ -307,6 +309,8 @@ function buildMap() {
     for (const id of ['Peak labels', 'Peak labels (US)']) {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
     }
+
+    addTerrain(map);
 
     map.addSource('peaks', { type: 'geojson', data: collection(), promoteId: 'id' });
 
@@ -489,6 +493,66 @@ function buildMap() {
       });
     }
   });
+}
+
+// ─── Terrain ──────────────────────────────────────────────────────────────────
+
+/**
+ * 3D terrain, behind the mountain button under the compass.
+ *
+ * The basemap already loads MapTiler's elevation tiles as `terrain_rgb` for its
+ * two hillshade layers. Terrain gets a source of its own over the same tiles:
+ * MapLibre warns that sharing one between hillshade and terrain costs quality.
+ * The URLs are identical, so the second copy mostly comes from the browser's
+ * cache rather than from the quota.
+ *
+ * Off until you ask for it. A tilted view reaches towards the horizon and
+ * fetches far more tiles than a flat one, and the free plan counts them.
+ *
+ * `exaggeration` stays close to 1. Real slopes read as real; at 2 the Alps turn
+ * into needles and nothing looks like the place you walked.
+ */
+const TERRAIN = {
+  source: 'terrain-3d',
+  basemapSource: 'terrain_rgb',
+  exaggeration: 1.3,
+  key: 'mmj.terrain'
+};
+
+function addTerrain(map) {
+  const dem = map.getStyle().sources[TERRAIN.basemapSource];
+  if (dem?.type !== 'raster-dem') {
+    console.warn(`[peaks] no ${TERRAIN.basemapSource} elevation source in the basemap — 3D terrain unavailable`);
+    return;
+  }
+  map.addSource(TERRAIN.source, { ...dem });
+
+  // Only drawn once the camera tilts: a pale sky, and haze towards the horizon
+  // so distant ridges fall back behind near ones the way they do outdoors.
+  map.setSky({
+    'sky-color': '#a9c8e4',
+    'horizon-color': '#e4ecf2',
+    'fog-color': '#eef2f4',
+    'sky-horizon-blend': 0.6,
+    'horizon-fog-blend': 0.6,
+    'fog-ground-blend': 0.4
+  });
+
+  const terrain = { source: TERRAIN.source, exaggeration: TERRAIN.exaggeration };
+  map.addControl(new maplibregl.TerrainControl(terrain), 'top-right');
+
+  // The camera is left where it is: tilting is yours to do.
+  map.on('terrain', () => {
+    try {
+      localStorage.setItem(TERRAIN.key, map.getTerrain() ? 'on' : 'off');
+    } catch { /* private browsing: the button still works for this visit */ }
+  });
+
+  let saved = null;
+  try {
+    saved = localStorage.getItem(TERRAIN.key);
+  } catch { /* no storage: start flat */ }
+  if (saved === 'on') map.setTerrain(terrain);
 }
 
 const LABEL_PAINT = {
