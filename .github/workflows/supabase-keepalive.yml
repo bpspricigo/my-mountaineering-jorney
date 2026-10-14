@@ -1,0 +1,27 @@
+# Keeps the free-tier Supabase project awake.
+#
+# Supabase pauses free projects after about 7 days without API activity. A cron
+# inside the database (pg_cron) does not count, so the request has to come from
+# outside: this pings the REST API every 3 days. The route table is readable
+# with the anon key under RLS; it answers 200 with an empty list, which is
+# enough. A failed ping fails the run, so a paused project shows up here.
+
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          curl --fail-with-body -sS "$SUPABASE_URL/rest/v1/route?select=id&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY"
